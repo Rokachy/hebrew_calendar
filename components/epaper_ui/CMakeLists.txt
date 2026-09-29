@@ -3,7 +3,7 @@
 # after adding or removing a .c file, run `idf.py reconfigure`.
 file(GLOB SRCS ui/*.c ui/fonts/*.c epd/*.c esp32s3/*.c)
 # Fonts kept in ui/fonts but not used by the UI (keep in sync with the simulator's CMakeLists.txt)
-list(FILTER SRCS EXCLUDE REGEX "lv_font_(heb_16|clock_large_48|clock_large_60|clock_large_72)\.c$")
+list(FILTER SRCS EXCLUDE REGEX "lv_font_(heb_16|clock_large_48|clock_large_60|clock_large_72|heb_96)\.c$")
 
 idf_component_register(
     SRCS ${SRCS}

@@ -12,9 +12,9 @@
 extern "C" {
 #endif
 
-/** Screen size the UI is laid out for (portrait). The display must match. */
-#define UI_HOR_RES 480
-#define UI_VER_RES 800
+/** Screen size the UI is laid out for (landscape). The display must match. */
+#define UI_HOR_RES 800
+#define UI_VER_RES 480
 
 /** Build all calendar widgets on the active screen of the default display */
 void ui_calendar_create(void);

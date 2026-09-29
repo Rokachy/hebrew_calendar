@@ -14,7 +14,7 @@
  *  270: panel turned counter-clockwise, its right edge is the top
  *  0:   landscape, no rotation (UI must then be 800x480)
  *If the picture is upside down, switch between 90 and 270.*/
-#define EPD_ROTATION 270
+#define EPD_ROTATION 0
 
 #if EPD_ROTATION == 0
     #define EPD_LV_HOR_RES EPD_WIDTH

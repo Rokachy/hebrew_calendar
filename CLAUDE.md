@@ -36,9 +36,11 @@
 - ESP32-S3-WROOM has no PSRAM (final board: ESP32-S3-MINI N4R2, 2 MB quad PSRAM).
   Keep large buffers in internal RAM, no full-screen RGB buffers. LVGL renders in
   ~38 KB RGB565 strips and packs them into a 96 KB 2bpp frame.
-- UI is portrait 480x800; `EPD_ROTATION` (90/270) in `epd_lvgl_port.c` rotates it onto
-  the 800x480 panel while packing. Swap 90/270 if the image is upside down.
+- UI size is `UI_HOR_RES`/`UI_VER_RES` in `ui_calendar.h`; `EPD_ROTATION` in
+  `epd_lvgl_port.c` must match (0 = landscape 800x480, 90/270 = portrait). Branch
+  `std_look` = portrait design (270), `new_look` = landscape design (0).
 - LVGL <-> panel: `main/epd_panel.c` fills an `epd_hw_ops_t` (init/show) passed to
   `epd_lvgl_port_init()`. Function pointers, so epaper_ui never links against main.
 - LVGL 9.6 via component manager, configured in sdkconfig (no lv_conf.h): colour depth 16,
-  BiDi on, ThorVG off, LV_MEM_SIZE 64 KB, examples/demos off. See sdkconfig.defaults.
+  BiDi on, ThorVG off, LVGL uses the ESP heap (CLIB malloc; the landscape UI needs
+  ~80 KB, too much for a fixed 64 KB pool), examples/demos off. See sdkconfig.defaults.
