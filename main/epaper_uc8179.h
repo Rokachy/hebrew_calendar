@@ -29,6 +29,7 @@
 #define EPD_COLOR_RED     0x3
 
 esp_err_t epaper_init(void);
+esp_err_t epaper_reinit(void);   // wake from epaper_sleep(): reset + init sequence
 esp_err_t epaper_display_raw(const uint8_t *frame_buffer, size_t buf_size);
 esp_err_t epaper_clear(void);
 esp_err_t epaper_sleep(void);

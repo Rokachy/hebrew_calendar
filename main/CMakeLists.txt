@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "epaper_uc8179.c"
+    SRCS "main.c" "epaper_uc8179.c" "epd_panel.c"
     INCLUDE_DIRS "."
     REQUIRES
         esp_driver_spi
@@ -7,4 +7,6 @@ idf_component_register(
         esp_timer
         freertos
         log
+        heap
+        epaper_ui
 )

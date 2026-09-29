@@ -1,50 +1,38 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "epaper_uc8179.h"
+#include "esp_heap_caps.h"
+#include "lvgl.h"
+#include "epd_lvgl_port.h"
+#include "epd_panel.h"
+#include "ui_calendar.h"
 
 static const char *TAG = "MAIN";
 
-static void draw_color_test(void) {
-    uint8_t *buf = malloc(EPD_BUF_SIZE);
-    if (!buf) {
-        ESP_LOGE(TAG, "Not enough memory for frame buffer!");
-        return;
-    }
+// LVGL rendering (fonts, BiDi) needs more stack than the 8 KB main task
+#define LVGL_TASK_STACK_SIZE (16 * 1024)
 
-    // Four vertical bands: BLACK | WHITE | YELLOW | RED
-    for (int y = 0; y < EPD_HEIGHT; y++) {
-        for (int x = 0; x < EPD_WIDTH; x++) {
-            uint8_t c = x < 200 ? EPD_COLOR_BLACK
-                      : x < 400 ? EPD_COLOR_WHITE
-                      : x < 600 ? EPD_COLOR_YELLOW
-                      :           EPD_COLOR_RED;
-            epaper_set_pixel(buf, x, y, c);
+static void lvgl_task(void *arg) {
+    lv_init();
+    epd_lvgl_port_init(&epd_panel_ops);
+
+    ui_calendar_create();
+    ui_calendar_update();
+
+    ESP_LOGI(TAG, "UI created, free internal heap: %u bytes",
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
+
+    while (1) {
+        // Blocks for ~20 s while the panel refreshes after a UI change
+        uint32_t ms = lv_timer_handler();
+        if (ms == LV_NO_TIMER_READY) {
+            ms = 1000;
         }
+        vTaskDelay(pdMS_TO_TICKS(ms));
     }
-
-    ESP_LOGI(TAG, "Sending 4-color test pattern...");
-    epaper_display_raw(buf, EPD_BUF_SIZE);
-    ESP_LOGI(TAG, "Done! Expect: BLACK | WHITE | YELLOW | RED");
-
-    free(buf);
 }
 
 void app_main(void) {
-    ESP_LOGI(TAG, "=== Good Display GDEM075F52 4-color test ===");
-
-    ESP_ERROR_CHECK(epaper_init());
-
-    ESP_LOGI(TAG, "Clearing screen...");
-    epaper_clear();
-
-    vTaskDelay(pdMS_TO_TICKS(1000));
-
-    draw_color_test();
-
-    ESP_LOGI(TAG, "Entering deep sleep.");
-    epaper_sleep();
+    ESP_LOGI(TAG, "=== Hebrew calendar, GDEM075F52 ===");
+    xTaskCreate(lvgl_task, "lvgl", LVGL_TASK_STACK_SIZE, NULL, 5, NULL);
 }

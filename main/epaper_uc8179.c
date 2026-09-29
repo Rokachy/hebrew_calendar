@@ -143,6 +143,13 @@ esp_err_t epaper_init(void) {
     return ESP_OK;
 }
 
+esp_err_t epaper_reinit(void) {
+    // After epaper_sleep() the panel only wakes up through a hardware reset;
+    // SPI and GPIO are already set up by epaper_init().
+    epd_panel_init();
+    return ESP_OK;
+}
+
 static void epd_refresh(void) {
     ESP_LOGI(TAG, "Refreshing (takes ~20 s)...");
     epd_send_cmd(0x12);
