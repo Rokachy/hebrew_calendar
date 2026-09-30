@@ -30,8 +30,8 @@
 
   ## Display / UI (shared with the simulator repo)
 - `components/epaper_ui/` (ui/, epd/, esp32s3/) is a copy from the LVGL PC simulator
-  (C:\Projects\lv_port_pc_vscode). Edit it there, then run
-  `powershell -ExecutionPolicy Bypass -File C:\Projects\lv_port_pc_vscode\tools\sync_to_hw.ps1`.
+  (C:\work\hebrew_calendar_sim, GitHub Rokachy/hebrew_calendar_sim). Edit it there, then run
+  `powershell -ExecutionPolicy Bypass -File C:\work\hebrew_calendar_sim\tools\sync_to_hw.ps1`.
   Never edit it here: the sync overwrites it.
 - ESP32-S3-WROOM has no PSRAM (final board: ESP32-S3-MINI N4R2, 2 MB quad PSRAM).
   Keep large buffers in internal RAM, no full-screen RGB buffers. LVGL renders in

@@ -14,7 +14,7 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
 
 # LVGL (configured through Kconfig, no lv_conf.h). Keep in sync with the
-# simulator's lv_conf.h in C:\Projects\lv_port_pc_vscode.
+# simulator's lv_conf.h in C:\work\hebrew_calendar_sim.
 CONFIG_LV_COLOR_DEPTH_16=y
 # LVGL allocates from the ESP heap: the landscape UI needs ~80 KB, more than a
 # fixed 64 KB pool, and a bigger fixed pool would waste internal RAM
