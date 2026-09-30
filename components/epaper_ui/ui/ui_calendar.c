@@ -14,7 +14,13 @@
     #include "lvgl/lvgl.h"
 #endif
 
+#include <stdio.h>
 #include "ui_calendar.h"
+#include "hebrew_date.h"
+#include "sun_times.h"
+#include "location.h"
+#include "shabbat.h"
+#include "zmanim.h"
 
 // Fonts compiled from ui/fonts/
 LV_FONT_DECLARE(lv_font_heb_18_bold); // default: times, zmanim names, study texts
@@ -48,9 +54,10 @@ LV_FONT_DECLARE(lv_font_heb_112);     // Shabbat times, Bold (digits and ":" onl
 #define SUNSET_W        70
 #define EVENT_W         (WEEK_W - DAY_TAG_W - GREG_W - SUNSET_W - SUNRISE_W)
 #define EVENT_X         0
-#define SUNRISE_X       (EVENT_X + EVENT_W)
-#define SUNSET_X        (SUNRISE_X + SUNRISE_W)
-#define GREG_X          (SUNSET_X + SUNSET_W)
+// Read right to left: day, dates, sunrise, sunset, event
+#define SUNSET_X        (EVENT_X + EVENT_W)
+#define SUNRISE_X       (SUNSET_X + SUNSET_W)
+#define GREG_X          (SUNRISE_X + SUNRISE_W)
 #define DAY_TAG_X       (GREG_X + GREG_W)
 // The day tag is split: Hebrew date on the left, day name on the right
 #define DAY_NAME_X      (DAY_TAG_X + HEB_DATE_W)
@@ -76,7 +83,7 @@ LV_FONT_DECLARE(lv_font_heb_112);     // Shabbat times, Bold (digits and ":" onl
 #define INFO_W          270
 #define ZMANIM_TITLE_Y  CONTENT_Y
 #define SECTION_TITLE_H 30
-#define ZMANIM_COUNT    7
+#define ZMANIM_COUNT    ZMAN_COUNT   // same order as zman_t in zmanim.h
 #define ZMAN_ROW_H      31
 // "לימוד יומי" lines up with the Shabbat titles on the right, and its rows end
 // level with the city blocks
@@ -89,8 +96,18 @@ static const char * const zman_names[ZMANIM_COUNT] = {
     "עלות השחר", "ציצית ותפילין", "סו\"ז ק\"ש מג\"א", "סו\"ז ק\"ש גר\"א",
     "סו\"ז ת' גר\"א", "חצות היום", "מנחה גדולה",
 };
-#define CITY_COUNT      3
-static const char * const city_names[CITY_COUNT] = { "י-ם", "חיפה", "ב\"ש" };
+static const char * const heb_days[7] = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
+static const char * const greg_months[12] = {
+    "ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+    "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר",
+};
+// Short forms for the narrow table header column
+static const char * const greg_months_short[12] = {
+    "ינואר", "פבר", "מרץ", "אפר", "מאי", "יוני",
+    "יולי", "אוג", "ספטמ", "אוקט", "נוב", "דצמ",
+};
+
+#define CITY_COUNT      LOC_CITY_COUNT
 
 static const char * const study_names[STUDY_COUNT] = {
     "דף יומי בבלי", "הלכה יומית", "משנה יומית",
@@ -116,7 +133,6 @@ static lv_obj_t *lbl_candle_city_times[CITY_COUNT];
 static lv_obj_t *lbl_havdalah_city_times[CITY_COUNT];
 
 // Left panel values
-static lv_obj_t *lbl_today_day;
 static lv_obj_t *lbl_today_hebrew;
 static lv_obj_t *lbl_today_greg;
 static lv_obj_t *lbl_zman_values[ZMANIM_COUNT];
@@ -189,49 +205,114 @@ static void set_today(int today)
     }
 }
 
-void ui_calendar_update(void) {
-    // Test data (0 = Sunday ... 6 = Shabbat)
-    const char* test_greg_nums[]  = {"6", "7", "8", "9", "10", "11", "12"};
-    const char* test_heb_nums[]   = {"כד", "כה", "כו", "כז", "כח", "כט", "א"};
-    const char* test_sunrises[]   = {"6:59", "6:57", "6:56", "6:55", "6:53", "6:52", "6:51"};
-    const char* test_sunsets[]    = {"6:24", "6:24", "6:25", "6:25", "6:26", "6:27", "6:27"};
-    const char* test_events[]     = {"", "", "", "", "", "", "ראש השנה"};
-    int test_today = 2;   // Tuesday
-    const char* test_zmanim[]     = {"5:03-08", "5:10-15", "8:51-52", "9:29-30",
-                                     "10:32", "12:40-38", "1:10-08"};
-    // Today's portion only
+/** Local time as 12-hour "6:24" (as printed calendars do), rounded to the nearest minute */
+static void format_time(time_t utc, char *buf, size_t len) {
+    utc += 30;
+    struct tm *t = localtime(&utc);
+    int hour = t->tm_hour % 12;
+    snprintf(buf, len, "%d:%02d", hour == 0 ? 12 : hour, t->tm_min);
+}
+
+/** Visible sunrise / sea-level sunset at the main location, "--:--" if there is none */
+static void show_sun_time(lv_obj_t *label, const struct tm *day, bool rising) {
+    char buf[8] = "--:--";
+    time_t t;
+    if (city_sunrise_sunset(&loc_main, day->tm_year + 1900, day->tm_mon + 1, day->tm_mday, rising, &t)) {
+        format_time(t, buf, sizeof(buf));
+    }
+    lv_label_set_text(label, buf);
+}
+
+/** Candle lighting for `city` on `friday`, "--:--" if there is none */
+static void show_candle_time(lv_obj_t *label, const city_t *city, const struct tm *friday) {
+    char buf[8] = "--:--";
+    time_t t;
+    if (shabbat_candle_lighting(city, friday->tm_year + 1900, friday->tm_mon + 1, friday->tm_mday, &t)) {
+        format_time(t, buf, sizeof(buf));
+    }
+    lv_label_set_text(label, buf);
+}
+
+/** End of Shabbat for `city` on `saturday`, "--:--" if there is none */
+static void show_end_time(lv_obj_t *label, const city_t *city, const struct tm *saturday) {
+    char buf[8] = "--:--";
+    time_t t;
+    if (shabbat_end(city, saturday->tm_year + 1900, saturday->tm_mon + 1, saturday->tm_mday, &t)) {
+        format_time(t, buf, sizeof(buf));
+    }
+    lv_label_set_text(label, buf);
+}
+
+void ui_calendar_update(const struct tm *today) {
+    int today_idx = today->tm_wday;   // 0 = Sunday ... 6 = Shabbat
+
+    char buf[48];
+
+    // Gregorian and Hebrew dates of this week's Sunday ... Shabbat
+    for (int i = 0; i < WEEK_DAYS; i++) {
+        struct tm d = *today;
+        d.tm_mday += i - today_idx;
+        d.tm_hour = 12;                // midday: safe from DST changes
+        d.tm_isdst = -1;
+        mktime(&d);                    // normalises across month / year ends
+        lv_label_set_text_fmt(lbl_greg_day_nums[i], "%d", d.tm_mday);
+
+        hdate_t hd = hd_from_greg(d.tm_year + 1900, d.tm_mon + 1, d.tm_mday);
+        hd_format_number(hd.day, false, buf, sizeof(buf));   // "כו": no marks in the narrow column
+        lv_label_set_text(lbl_heb_day_nums[i], buf);
+
+        show_sun_time(lbl_sunrise_times[i], &d, true);
+        show_sun_time(lbl_sunset_times[i], &d, false);
+    }
+    set_today(today_idx);
+
+    // Top line and column headers: today's Hebrew and Gregorian date
+    hdate_t hd_today = hd_from_greg(today->tm_year + 1900, today->tm_mon + 1, today->tm_mday);
+    hd_format_date(&hd_today, buf, sizeof(buf));
+    lv_label_set_text(lbl_today_hebrew, buf);
+    lv_label_set_text_fmt(lbl_today_greg, "%d %s %d", today->tm_mday,
+                          greg_months[today->tm_mon], today->tm_year + 1900);
+    lv_label_set_text(lbl_header_hebrew_month, hd_month_name(hd_today.month, hd_today.year));
+    lv_label_set_text(lbl_header_month, greg_months_short[today->tm_mon]);
+
+    // Today's זמני היום at the main location (definitions in zmanim.h)
+    time_t zmanim[ZMAN_COUNT];
+    bool have_zmanim = zmanim_calc(&loc_main, today->tm_year + 1900, today->tm_mon + 1,
+                                   today->tm_mday, zmanim);
+    for (int i = 0; i < ZMANIM_COUNT; i++) {
+        char t[8] = "--:--";
+        if (have_zmanim) format_time(zman_rounded((zman_t)i, zmanim[i]), t, sizeof(t));
+        lv_label_set_text(lbl_zman_values[i], t);
+    }
+
+    // Sample data until the study and holidays are calculated
     const char* test_study[]      = {"חולין: קל\"ז", "או\"ח: רס\"א, ג", "כלים: כ\"ט, ב"};
 
     for (int i = 0; i < WEEK_DAYS; i++) {
-        lv_label_set_text(lbl_greg_day_nums[i], test_greg_nums[i]);
-        lv_label_set_text(lbl_heb_day_nums[i], test_heb_nums[i]);
-        lv_label_set_text(lbl_sunrise_times[i], test_sunrises[i]);
-        lv_label_set_text(lbl_sunset_times[i], test_sunsets[i]);
-        lv_label_set_text(lbl_events[i], test_events[i]);
-    }
-    set_today(test_today);
-
-    for (int i = 0; i < ZMANIM_COUNT; i++) {
-        lv_label_set_text(lbl_zman_values[i], test_zmanim[i]);
+        lv_label_set_text(lbl_events[i], "");   // holidays: next step
     }
     for (int i = 0; i < STUDY_COUNT; i++) {
         lv_label_set_text(lbl_study_values[i], test_study[i]);
     }
 
-    lv_label_set_text(lbl_today_day, "יום שלישי");
-    lv_label_set_text(lbl_today_hebrew, "כ\"ו אלול תשפ\"ו");
-    lv_label_set_text(lbl_today_greg, "8 ספטמבר 2026");
-
-    lv_label_set_text(lbl_header_hebrew_month, "תשרי");
-    lv_label_set_text(lbl_header_month, "ספטמ");
-
-    lv_label_set_text(lbl_candle_lighting_time, "6:30");
-    lv_label_set_text(lbl_havdalah_time, "7:28");
-    const char* test_candle_cities[]   = {"6:14", "6:21", "6:32"};
-    const char* test_havdalah_cities[] = {"7:26", "7:28", "7:27"};
+    // This week's Shabbat: candle lighting on Friday (rules in location.c)
+    struct tm friday = *today;
+    friday.tm_mday += 5 - today_idx;
+    friday.tm_hour = 12;
+    friday.tm_isdst = -1;
+    mktime(&friday);
+    show_candle_time(lbl_candle_lighting_time, &loc_main, &friday);
     for (int i = 0; i < CITY_COUNT; i++) {
-        lv_label_set_text(lbl_candle_city_times[i], test_candle_cities[i]);
-        lv_label_set_text(lbl_havdalah_city_times[i], test_havdalah_cities[i]);
+        show_candle_time(lbl_candle_city_times[i], &loc_cities[i], &friday);
+    }
+
+    // End of Shabbat on Saturday evening (צאת הכוכבים, see shabbat.h)
+    struct tm saturday = friday;
+    saturday.tm_mday += 1;
+    mktime(&saturday);
+    show_end_time(lbl_havdalah_time, &loc_main, &saturday);
+    for (int i = 0; i < CITY_COUNT; i++) {
+        show_end_time(lbl_havdalah_city_times[i], &loc_cities[i], &saturday);
     }
 }
 
@@ -258,7 +339,7 @@ static void create_city_times(lv_obj_t *scr, int32_t x, lv_obj_t *time_labels[CI
         lv_obj_set_style_pad_column(city, 5, 0);             // name on the right, time on the left
 
         lv_obj_t *name = lv_label_create(city);
-        lv_label_set_text(name, city_names[i]);
+        lv_label_set_text(name, loc_cities[i].short_name);
         time_labels[i] = lv_label_create(city);
         lv_obj_set_style_base_dir(time_labels[i], LV_BASE_DIR_LTR, 0);
         lv_label_set_text(time_labels[i], "--:--");
@@ -276,7 +357,6 @@ static void make_shabbat_title(lv_obj_t *scr, int32_t x, const char *text)
 
 static void create_week(lv_obj_t *scr)
 {
-    const char* heb_days[WEEK_DAYS] = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
 
     // Column titles, all 22 px, white on red like the other headers
     lv_obj_t *titles = make_box(scr, WEEK_X, COL_TITLE_Y, WEEK_W, COL_TITLE_H);
@@ -308,8 +388,8 @@ static void create_week(lv_obj_t *scr)
         set_bottom_line(row);
         lv_obj_set_style_text_font(row, &lv_font_heb_22_bold, 0);   // one size for the whole row
 
-        // Today: yellow from the day name to sunrise (not the event), above the bottom line
-        today_marks[i] = make_box(row, SUNRISE_X, 0, WEEK_W - SUNRISE_X, ROW_H - 1);
+        // Today: yellow from the day name to sunset (not the event), above the bottom line
+        today_marks[i] = make_box(row, SUNSET_X, 0, WEEK_W - SUNSET_X, ROW_H - 1);
         set_fill(today_marks[i], EINK_COLOR_YELLOW);
         lv_obj_set_hidden(today_marks[i], true);
 
@@ -329,13 +409,7 @@ static void create_week(lv_obj_t *scr)
         cell = make_box(row, DAY_TAG_X, 0, HEB_DATE_W, LV_PCT(100));
         lbl_heb_day_nums[i] = make_label(cell, "--", NULL, LV_ALIGN_CENTER, 0, true);
         cell = make_box(row, DAY_NAME_X, 0, DAY_NAME_W, LV_PCT(100));
-        lv_obj_t *day_name = make_label(cell, heb_days[i], NULL, LV_ALIGN_RIGHT_MID, -DAY_TAG_PAD, true);
-
-        if (i == WEEK_DAYS - 1) {   // Shabbat: day name and dates in red
-            lv_obj_set_style_text_color(day_name, EINK_COLOR_RED, 0);
-            lv_obj_set_style_text_color(lbl_heb_day_nums[i], EINK_COLOR_RED, 0);
-            lv_obj_set_style_text_color(lbl_greg_day_nums[i], EINK_COLOR_RED, 0);
-        }
+        make_label(cell, heb_days[i], NULL, LV_ALIGN_RIGHT_MID, -DAY_TAG_PAD, true);
     }
 
     // Shabbat: titles, big times (havdalah left, candle lighting right), other cities.
@@ -380,10 +454,11 @@ static void create_info(lv_obj_t *scr)
 }
 
 /**
- * Top line on yellow: "day   Hebrew date   Gregorian date", centred, right to left.
+ * Top line on yellow: "Hebrew date   Gregorian date", centred, right to left.
+ * (No day name: today's row in the table is highlighted.)
  * Separate labels: numbers inside one RTL label can be reordered by LVGL.
  * Full month names fit here (the line spans the whole screen), e.g.
- * "יום חמישי  כ\"ט מרחשוון תשפ\"ז  28 אוקטובר 2026".
+ * "כ\"ט חשוון תשפ\"ז  28 אוקטובר 2026".
  */
 static void create_today(lv_obj_t *scr)
 {
@@ -395,9 +470,15 @@ static void create_today(lv_obj_t *scr)
     lv_obj_set_flex_align(line, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(line, 30, 0);   // space between the three parts
 
-    lbl_today_day = lv_label_create(line);
     lbl_today_hebrew = lv_label_create(line);
     lbl_today_greg = lv_label_create(line);
+
+    // Small note at the left end: which horizon the times are for.
+    // On the screen, not in the line: the line centres its children.
+    lv_obj_t *horizon = lv_label_create(scr);
+    lv_obj_set_style_base_dir(horizon, LV_BASE_DIR_RTL, 0);
+    lv_label_set_text_fmt(horizon, "אופק %s", loc_main.name);
+    lv_obj_align_to(horizon, line, LV_ALIGN_LEFT_MID, 8, 0);
 }
 
 void ui_calendar_create(void) {

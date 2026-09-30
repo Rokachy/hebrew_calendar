@@ -44,3 +44,11 @@
 - LVGL 9.6 via component manager, configured in sdkconfig (no lv_conf.h): colour depth 16,
   BiDi on, ThorVG off, LVGL uses the ESP heap (CLIB malloc; the landscape UI needs
   ~80 KB, too much for a fixed 64 KB pool), examples/demos off. See sdkconfig.defaults.
+
+## Clock / power
+- `main/time_sync.c`: Israel TZ; Wi-Fi + SNTP only if the RTC time is invalid or the last
+  sync (RTC_DATA_ATTR) is older than TIME_RESYNC_DAYS. Wi-Fi is deinitialised before LVGL.
+- `main/main.c` draws once (`lv_refr_now`), then deep sleeps until 00:01; no valid time ->
+  screen untouched, retry in 15 min.
+- Wi-Fi credentials: `main/wifi_secrets.h` (gitignored, never commit it); template
+  `main/wifi_secrets.example.h`.

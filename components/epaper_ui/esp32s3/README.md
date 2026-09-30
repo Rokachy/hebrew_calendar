@@ -57,7 +57,7 @@ match what that driver sends to the panel.
 lv_init();
 epd_lvgl_port_init(&epd_panel_ops);  /* epd_hw_ops_t from the HW project */
 ui_calendar_create();
-ui_calendar_update();
+ui_calendar_update(&today);          /* struct tm, local time */
 
 while(1) {
     uint32_t ms = lv_timer_handler();   /* blocks during a panel refresh */

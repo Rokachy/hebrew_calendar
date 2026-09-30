@@ -2,3 +2,6 @@
 /.vscode/settings.json
 
 /managed_components/
+
+# Wi-Fi name and password (template: main/wifi_secrets.example.h)
+/main/wifi_secrets.h
