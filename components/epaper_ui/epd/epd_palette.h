@@ -37,6 +37,16 @@ typedef enum {
 /** Nearest panel colour for an RGB888 value */
 epd_color_t epd_palette_nearest(uint8_t r, uint8_t g, uint8_t b);
 
+/**
+ * Panel colour for the pixel at (x, y). Like epd_palette_nearest(), plus one
+ * mixed colour: orange (EPD_ORANGE_R/G/B) becomes a red/yellow checkerboard,
+ * which looks orange from a normal distance.
+ */
+#define EPD_ORANGE_R 0xFF
+#define EPD_ORANGE_G 0x80
+#define EPD_ORANGE_B 0x00
+epd_color_t epd_palette_pixel(uint8_t r, uint8_t g, uint8_t b, int32_t x, int32_t y);
+
 /** RGB888 value that represents a panel colour (for the simulator preview) */
 void epd_palette_rgb(epd_color_t c, uint8_t * r, uint8_t * g, uint8_t * b);
 

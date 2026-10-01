@@ -32,6 +32,16 @@ typedef struct {
 /** Hebrew date of a Gregorian date (month 1-12) */
 hdate_t hd_from_greg(int year, int month, int day);
 
+/**
+ * Day numbers on one continuous scale (day 1 = 1 Jan of year 1), for counting
+ * days between dates. Day of the week: number % 7, 0 = Sunday ... 6 = Shabbat.
+ */
+long hd_day_number_greg(int year, int month, int day);
+long hd_day_number_hebrew(int year, int month, int day);
+
+/** Days in a Hebrew month (29 or 30) */
+int hd_days_in_month(int month, int year);
+
 /** True if the Hebrew year has 13 months */
 bool hd_is_leap(int year);
 

@@ -5,3 +5,6 @@
 
 # Wi-Fi name and password (template: main/wifi_secrets.example.h)
 /main/wifi_secrets.h
+
+# Private family dates, synced from the simulator (template: family.example.h)
+/components/epaper_ui/cal/family.h

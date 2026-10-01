@@ -60,6 +60,9 @@ All in `components/epaper_ui/cal/`, from today's date and the fixed settings in
   (see `cal/zmanim.h`)
 - כניסת השבת: sunset minus the city's minutes (22 / 40 / 30 / 20), rounded down;
   יציאת השבת: sun 8.5 degrees below the horizon, rounded up
+- Holidays, ראש חודש and fasts (Israel), פרשת השבוע (Israel), daf yomi
+- Family dates from `cal/family.h` – **not in git**; edit it in the simulator repo
+  (`src/cal/family.h`, copied from `family.example.h`), then sync
 
 The simulator repo has tests that check these against Hebcal and the printed calendar.
 

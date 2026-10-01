@@ -10,8 +10,10 @@
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
     #include "lvgl.h"
+    #include "lvgl_private.h"   // lv_text_get_width()
 #else
     #include "lvgl/lvgl.h"
+    #include "lvgl/lvgl_private.h"
 #endif
 
 #include <stdio.h>
@@ -23,8 +25,13 @@
 #include "shabbat.h"
 #include "zmanim.h"
 #include "daf_yomi.h"
+#include "holidays.h"
+#include "parsha.h"
+#include "family_dates.h"
 
 // Fonts compiled from ui/fonts/
+LV_FONT_DECLARE(lv_font_heb_13_bold); // long events only, see fit_event()
+LV_FONT_DECLARE(lv_font_heb_15_bold); // long events only
 LV_FONT_DECLARE(lv_font_heb_18_bold); // default: small texts (cities, bottom line)
 LV_FONT_DECLARE(lv_font_heb_22_bold); // day names, titles, zmanim values
 LV_FONT_DECLARE(lv_font_heb_26_bold); // dates
@@ -35,6 +42,7 @@ LV_FONT_DECLARE(lv_font_heb_112);     // Shabbat times, Bold (digits and ":" onl
 #define EINK_COLOR_BLACK  lv_color_make(0x00, 0x00, 0x00)
 #define EINK_COLOR_RED    lv_color_make(0xFF, 0x00, 0x00)
 #define EINK_COLOR_YELLOW lv_color_make(0xFF, 0xCC, 0x00)
+#define EINK_COLOR_ORANGE lv_color_make(0xFF, 0x80, 0x00)   // red/yellow checkerboard on the panel, see epd_palette.h
 
 #define UI_MARGIN       10
 
@@ -123,6 +131,7 @@ static lv_obj_t *lbl_greg_day_nums[WEEK_DAYS];
 static lv_obj_t *lbl_sunset_times[WEEK_DAYS];
 static lv_obj_t *lbl_sunrise_times[WEEK_DAYS];
 static lv_obj_t *lbl_events[WEEK_DAYS];
+static lv_obj_t *event_cells[WEEK_DAYS];   // orange when the day has an event
 static lv_obj_t *today_marks[WEEK_DAYS];   // yellow bar, shown on today's row only
 static lv_obj_t *week_rows[WEEK_DAYS];
 static lv_obj_t *zman_rows[ZMANIM_COUNT];   // level with week_rows, see set_today()
@@ -148,6 +157,7 @@ static lv_obj_t *lbl_havdalah_city_times[CITY_COUNT];
 // Left panel values
 static lv_obj_t *lbl_today_hebrew;
 static lv_obj_t *lbl_today_greg;
+static lv_obj_t *lbl_parsha;
 static lv_obj_t *lbl_updated;
 static lv_obj_t *lbl_note;
 static lv_obj_t *lbl_zman_values[ZMANIM_COUNT];
@@ -200,6 +210,22 @@ static void make_section_title(lv_obj_t *parent, int32_t y, const char *text)
     make_label(bar, text, &lv_font_heb_22_bold, LV_ALIGN_CENTER, 0, true);
 }
 
+/** One line in the event column: the row's font if the text fits, else the
+ *  first smaller font it fits in (18, 15, 13); still too wide -> ends with "..." */
+static void fit_event(lv_obj_t *lbl, const lv_font_t *font)
+{
+    const lv_font_t *const fonts[] = { font, &lv_font_heb_18_bold, &lv_font_heb_15_bold, &lv_font_heb_13_bold };
+    const char *text = lv_label_get_text(lbl);
+    lv_text_attributes_t attr;
+    lv_text_attributes_init(&attr);
+    for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {
+        font = fonts[i];
+        if (lv_text_get_width(text, strlen(text), font, &attr) <= EVENT_W - 8) break;   // the label's width, see create_week()
+    }
+    lv_obj_set_style_text_font(lbl, font, 0);
+    lv_obj_set_height(lbl, lv_font_get_line_height(font));
+}
+
 /**
  * Today's row is taller, 26 px and yellow; the other rows are 22 px.
  * The table height is the same for any day, so nothing below it moves.
@@ -218,8 +244,11 @@ static void set_today(int today)
             lv_obj_set_pos(zman_rows[i], INFO_X, y);
             lv_obj_set_height(zman_rows[i], h);
         }
-        lv_obj_set_style_text_font(week_rows[i], is_today ? &lv_font_heb_26_bold : &lv_font_heb_22_bold, 0);
-        lv_obj_set_height(today_marks[i], h - 1);   // keep the row line visible
+        const lv_font_t *font = is_today ? &lv_font_heb_26_bold : &lv_font_heb_22_bold;
+        lv_obj_set_style_text_font(week_rows[i], font, 0);
+        fit_event(lbl_events[i], font);
+        lv_obj_set_height(event_cells[i], h - 1);   // keep the row line visible
+        lv_obj_set_height(today_marks[i], h - 1);
         lv_obj_set_hidden(today_marks[i], !is_today);
         y += h;
     }
@@ -316,6 +345,21 @@ void ui_calendar_update(const struct tm *today) {
 
         show_sun_time(lbl_sunrise_times[i], &d, true);
         show_sun_time(lbl_sunset_times[i], &d, false);
+
+        // Family dates first (so a cut-off line still shows the name), then holidays,
+        // fasts, ראש חודש (empty if none), black on orange
+        char event[160], holiday[96];
+        family_events(d.tm_year + 1900, d.tm_mon + 1, d.tm_mday, event, sizeof(event));
+        if (holiday_events(d.tm_year + 1900, d.tm_mon + 1, d.tm_mday, holiday, sizeof(holiday))) {
+            if (event[0]) {
+                // "ראש חודש אייר" alone -> "ר"ח", as holidays.c does next to a holiday
+                if (strncmp(holiday, "ראש חודש", strlen("ראש חודש")) == 0) strcpy(holiday, "ר\"ח");
+                strncat(event, ", ", sizeof(event) - strlen(event) - 1);
+            }
+            strncat(event, holiday, sizeof(event) - strlen(event) - 1);
+        }
+        lv_label_set_text(lbl_events[i], event);
+        lv_obj_set_style_bg_opa(event_cells[i], event[0] ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
     }
     set_today(today_idx);
 
@@ -342,9 +386,6 @@ void ui_calendar_update(const struct tm *today) {
         lv_label_set_text(lbl_zman_values[i], t);
     }
 
-    for (int i = 0; i < WEEK_DAYS; i++) {
-        lv_label_set_text(lbl_events[i], "");   // holidays: next step
-    }
 
     // Daily study: daf yomi is calculated; mishna yomit needs a table ("--" for now)
     const char *tractate;
@@ -374,6 +415,15 @@ void ui_calendar_update(const struct tm *today) {
     saturday.tm_mday += 1;
     mktime(&saturday);
     show_end_time(lbl_havdalah_time, &loc_main, &saturday);
+
+    // Top line, left end: this week's portion (or the holiday read on that Shabbat)
+    char portion[64];
+    if (parsha_of_shabbat(saturday.tm_year + 1900, saturday.tm_mon + 1, saturday.tm_mday,
+                          portion, sizeof(portion))) {
+        lv_label_set_text_fmt(lbl_parsha, "פרשת שבוע: %s", portion);
+    } else {
+        lv_label_set_text(lbl_parsha, "");
+    }
     for (int i = 0; i < CITY_COUNT; i++) {
         show_end_time(lbl_havdalah_city_times[i], &loc_cities[i], &saturday);
     }
@@ -476,9 +526,16 @@ static void create_week(lv_obj_t *scr)
         set_fill(today_marks[i], EINK_COLOR_YELLOW);
         lv_obj_set_hidden(today_marks[i], true);
 
-        cell = make_box(row, EVENT_X, 0, EVENT_W, LV_PCT(100));
+        // Event: black on orange (only on days with an event), font in fit_event()
+        cell = make_box(row, EVENT_X, 0, EVENT_W, ROW_H - 1);
+        event_cells[i] = cell;
+        set_fill(cell, EINK_COLOR_ORANGE);
         lbl_events[i] = make_label(cell, "", NULL, LV_ALIGN_CENTER, 0, true);
-        lv_obj_set_style_text_color(lbl_events[i], EINK_COLOR_RED, 0);
+        lv_obj_set_style_text_color(lbl_events[i], EINK_COLOR_BLACK, 0);
+        // Fixed width, one line (height in set_today): text that does not fit ends with "..."
+        lv_obj_set_width(lbl_events[i], EVENT_W - 8);
+        lv_label_set_long_mode(lbl_events[i], LV_LABEL_LONG_MODE_DOTS);
+        lv_obj_set_style_text_align(lbl_events[i], LV_TEXT_ALIGN_CENTER, 0);
         cell = make_box(row, SUNRISE_X, 0, SUNRISE_W, LV_PCT(100));
         lbl_sunrise_times[i] = make_label(cell, "--:--", NULL, LV_ALIGN_CENTER, 0, false);
         cell = make_box(row, SUNSET_X, 0, SUNSET_W, LV_PCT(100));
@@ -557,17 +614,11 @@ static void create_info(lv_obj_t *scr)
 }
 
 /**
- * Top line on yellow: "Hebrew date   Gregorian date", centred, right to left.
- * (No day name: today's row in the table is highlighted.)
- * Separate labels: numbers inside one RTL label can be reordered by LVGL.
- * Full month names fit here (the line spans the whole screen), e.g.
- * "כ\"ט חשוון תשפ\"ז  28 אוקטובר 2026".
- */
-/**
- * Bottom line, small, at the left, in English (a debug / health line):
+ * Bottom line, small, in English at the left (a debug / health line):
  *   "Updated 1.10.2026 00:01  #15  NTP 14/15  drift ..."
  * If it does not show today's date, the device has stopped updating (the e-paper
  * keeps the last image without power). The note part is filled by the HW.
+ * At the right end: which horizon the times are for ("אופק תל אביב").
  */
 static void create_footer(lv_obj_t *scr)
 {
@@ -583,12 +634,25 @@ static void create_footer(lv_obj_t *scr)
     lv_label_set_text(lbl_updated, "");
     lbl_note = lv_label_create(line);                       // debug info from the HW
     lv_label_set_text(lbl_note, "");
+
+    // On the screen, not in the line: the line lays its labels out from the left
+    lv_obj_t *horizon = lv_label_create(scr);
+    lv_obj_set_style_base_dir(horizon, LV_BASE_DIR_RTL, 0);
+    lv_label_set_text_fmt(horizon, "אופק %s", loc_main.name);
+    lv_obj_align_to(horizon, line, LV_ALIGN_RIGHT_MID, -6, 0);
 }
 
 void ui_calendar_set_note(const char *text) {
     if (lbl_note) lv_label_set_text(lbl_note, text ? text : "");
 }
 
+/**
+ * Top line on yellow, right to left: "Hebrew date   Gregorian date" from the
+ * right edge, and "פרשת שבוע: ..." (this week's Shabbat) at the left edge.
+ * (No day name: today's row in the table is highlighted.)
+ * Separate labels: numbers inside one RTL label can be reordered by LVGL.
+ * Full month names fit here, e.g. "כ\"ט חשוון תשפ\"ז  28 אוקטובר 2026".
+ */
 static void create_today(lv_obj_t *scr)
 {
     lv_obj_t *line = make_box(scr, UI_MARGIN, TODAY_Y, UI_HOR_RES - 2 * UI_MARGIN, TODAY_H);
@@ -596,18 +660,20 @@ static void create_today(lv_obj_t *scr)
     lv_obj_set_style_text_font(line, &lv_font_heb_26_bold, 0);
     lv_obj_set_style_base_dir(line, LV_BASE_DIR_RTL, 0);   // first item on the right
     lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(line, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(line, 30, 0);   // space between the three parts
+    lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(line, 30, 0);   // space between the two dates
+    lv_obj_set_style_pad_hor(line, 8, 0);
 
     lbl_today_hebrew = lv_label_create(line);
     lbl_today_greg = lv_label_create(line);
 
-    // Small note at the left end: which horizon the times are for.
-    // On the screen, not in the line: the line centres its children.
-    lv_obj_t *horizon = lv_label_create(scr);
-    lv_obj_set_style_base_dir(horizon, LV_BASE_DIR_RTL, 0);
-    lv_label_set_text_fmt(horizon, "אופק %s", loc_main.name);
-    lv_obj_align_to(horizon, line, LV_ALIGN_LEFT_MID, 8, 0);
+    // פרשת שבוע at the left end. On the screen, not in the line (the line lays its
+    // labels out from the right); anchored by its left edge, so any length fits.
+    lbl_parsha = lv_label_create(scr);
+    lv_obj_set_style_text_font(lbl_parsha, &lv_font_heb_26_bold, 0);
+    lv_obj_set_style_base_dir(lbl_parsha, LV_BASE_DIR_RTL, 0);
+    lv_label_set_text(lbl_parsha, "");
+    lv_obj_align(lbl_parsha, LV_ALIGN_TOP_LEFT, UI_MARGIN + 8, TODAY_Y + (TODAY_H - 29) / 2);
 }
 
 void ui_calendar_create(void) {

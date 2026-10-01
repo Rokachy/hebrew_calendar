@@ -63,7 +63,7 @@ static void epd_flush_cb(lv_display_t * disp, const lv_area_t * area, uint8_t * 
             uint8_t r = (uint8_t)((((c >> 11) & 0x1F) * 255) / 31);
             uint8_t g = (uint8_t)((((c >> 5) & 0x3F) * 255) / 63);
             uint8_t b = (uint8_t)(((c & 0x1F) * 255) / 31);
-            epd_fb_set_px(x, y, epd_palette_nearest(r, g, b));
+            epd_fb_set_px(x, y, epd_palette_pixel(r, g, b, x, y));
         }
     }
 

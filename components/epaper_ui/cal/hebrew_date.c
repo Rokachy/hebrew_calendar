@@ -139,3 +139,15 @@ void hd_format_date(const hdate_t *hd, char *buf, size_t len) {
     hd_format_number(hd->year, true, year, sizeof(year));
     snprintf(buf, len, "%s %s %s", day, hd_month_name(hd->month, hd->year), year);
 }
+
+long hd_day_number_greg(int year, int month, int day) {
+    return greg_to_abs(year, month, day);
+}
+
+long hd_day_number_hebrew(int year, int month, int day) {
+    return hebrew_to_abs(year, month, day);
+}
+
+int hd_days_in_month(int month, int year) {
+    return days_in_month(month, year);
+}
