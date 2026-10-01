@@ -19,6 +19,8 @@
 // מנחה גדולה: 30 fixed minutes after חצות.
 // (Was half a seasonal hour after חצות, as in Hebcal; changed to match the family's calendar.)
 #define MINCHA_GEDOLA_MIN      30
+// פלג המנחה: 1.25 seasonal hours (גר"א) before sunset, as in Hebcal
+#define PLAG_SEASONAL_HOURS    1.25
 
 bool zmanim_calc(const city_t *city, int year, int month, int day, time_t out[ZMAN_COUNT]) {
     time_t sunrise, sunset;
@@ -42,6 +44,22 @@ bool zmanim_calc(const city_t *city, int year, int month, int day, time_t out[ZM
     out[ZMAN_TFILA_GRA] = sunrise + (time_t)(4 * hour_gra);
     out[ZMAN_CHATZOT] = chatzot;
     out[ZMAN_MINCHA_GEDOLA] = chatzot + MINCHA_GEDOLA_MIN * 60;
+    out[ZMAN_PLAG] = sunset - (time_t)(PLAG_SEASONAL_HOURS * hour_gra);
+    return true;
+}
+
+// צאת הכוכבים: 13.5 seasonal minutes after sunset (see zmanim.h)
+#define TZEIT_SEASONAL_MIN     13.5
+
+bool zman_tzeit(const city_t *city, int year, int month, int day, time_t *out) {
+    time_t sunrise, sunset;
+    if (!sun_time(year, month, day, city->latitude, city->longitude, SUN_ZENITH_SUNRISE, true, &sunrise) ||
+        !sun_time(year, month, day, city->latitude, city->longitude, SUN_ZENITH_SUNRISE, false, &sunset)) {
+        return false;
+    }
+    double hour_gra = (double)(sunset - sunrise) / 12.0;
+    time_t t = sunset + (time_t)(TZEIT_SEASONAL_MIN / 60.0 * hour_gra);
+    *out = t % 60 ? t + (60 - t % 60) : t;   // round up: not earlier than the real time
     return true;
 }
 

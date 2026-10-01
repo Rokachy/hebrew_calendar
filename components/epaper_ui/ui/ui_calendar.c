@@ -3,7 +3,7 @@
  *
  * Landscape layout (800x480):
  *   top:   today's day, Hebrew and Gregorian date, centred
- *   left:  "זמני היום" table, "לימוד יומי" table
+ *   left:  "זמני היום" table (8 times), daily study below it
  *   right: Sunday-Shabbat table (Hebrew day + date, Gregorian date, sunset,
  *          sunrise, event), then the Shabbat times in a big font and other cities
  */
@@ -15,15 +15,17 @@
 #endif
 
 #include <stdio.h>
+#include <string.h>
 #include "ui_calendar.h"
 #include "hebrew_date.h"
 #include "sun_times.h"
 #include "location.h"
 #include "shabbat.h"
 #include "zmanim.h"
+#include "daf_yomi.h"
 
 // Fonts compiled from ui/fonts/
-LV_FONT_DECLARE(lv_font_heb_18_bold); // default: times, zmanim names, study texts
+LV_FONT_DECLARE(lv_font_heb_18_bold); // default: small texts (cities, bottom line)
 LV_FONT_DECLARE(lv_font_heb_22_bold); // day names, titles, zmanim values
 LV_FONT_DECLARE(lv_font_heb_26_bold); // dates
 LV_FONT_DECLARE(lv_font_heb_112);     // Shabbat times, Bold (digits and ":" only)
@@ -78,27 +80,29 @@ LV_FONT_DECLARE(lv_font_heb_112);     // Shabbat times, Bold (digits and ":" onl
 #define CITY_STRIP_Y    (BIG_TIME_Y + BIG_TIME_H + 4)
 #define CITY_STRIP_H    30  // "name time" on one line per city
 
-// ---- Bottom line: when the screen was last updated ----
+// ---- Bottom line (English, debug): when the screen was last updated ----
 #define FOOTER_Y        (CITY_STRIP_Y + CITY_STRIP_H + 2)
 #define FOOTER_H        (UI_VER_RES - FOOTER_Y)
 
-// ---- Left panel: zmanim and daily study ----
+// ---- Left panel: זמני היום ----
 #define INFO_X          UI_MARGIN
 #define INFO_W          270
 #define ZMANIM_TITLE_Y  CONTENT_Y
 #define SECTION_TITLE_H 30
 #define ZMANIM_COUNT    ZMAN_COUNT   // same order as zman_t in zmanim.h
-#define ZMAN_ROW_H      31
-// "לימוד יומי" lines up with the Shabbat titles on the right, and its rows end
-// level with the city blocks
-#define STUDY_TITLE_Y   SHABBAT_TITLE_Y
-#define STUDY_COUNT     3
-#define STUDY_ROW_H     ((CITY_STRIP_Y + CITY_STRIP_H - STUDY_TITLE_Y - SECTION_TITLE_H) / STUDY_COUNT)
 #define INFO_TEXT_PAD   6
+// Under the last time row: צאת הכוכבים, רבינו תם (Fri / Shabbat only), a red
+// separator, then the daily study rows (no title bar) - see layout_lower_left()
+#define LOWER_LEFT_Y    (ROW_START_Y + WEEK_TABLE_H + (ZMANIM_COUNT - WEEK_DAYS) * ROW_H)
+#define STUDY_COUNT     2
+
+static const char * const study_names[STUDY_COUNT] = {
+    "דף יומי", "משנה יומית",
+};
 
 static const char * const zman_names[ZMANIM_COUNT] = {
     "עלות השחר", "ציצית ותפילין", "סו\"ז ק\"ש מג\"א", "סו\"ז ק\"ש גר\"א",
-    "סו\"ז ת' גר\"א", "חצות היום", "מנחה גדולה",
+    "סו\"ז ת' גר\"א", "חצות היום", "מנחה גדולה", "פלג המנחה",
 };
 static const char * const heb_days[7] = {"ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"};
 static const char * const greg_months[12] = {
@@ -113,10 +117,6 @@ static const char * const greg_months_short[12] = {
 
 #define CITY_COUNT      LOC_CITY_COUNT
 
-static const char * const study_names[STUDY_COUNT] = {
-    "דף יומי בבלי", "הלכה יומית", "משנה יומית",
-};
-
 // Week table (0 = Sunday ... 6 = Shabbat)
 static lv_obj_t *lbl_heb_day_nums[WEEK_DAYS];
 static lv_obj_t *lbl_greg_day_nums[WEEK_DAYS];
@@ -125,6 +125,15 @@ static lv_obj_t *lbl_sunrise_times[WEEK_DAYS];
 static lv_obj_t *lbl_events[WEEK_DAYS];
 static lv_obj_t *today_marks[WEEK_DAYS];   // yellow bar, shown on today's row only
 static lv_obj_t *week_rows[WEEK_DAYS];
+static lv_obj_t *zman_rows[ZMANIM_COUNT];   // level with week_rows, see set_today()
+static lv_obj_t *lbl_study_values[STUDY_COUNT];
+static lv_obj_t *study_rows[STUDY_COUNT];
+static lv_obj_t *tzeit_row;                  // צאת הכוכבים, every day
+static lv_obj_t *lbl_tzeit_value;
+static lv_obj_t *rt_row;                     // רבינו תם, Friday and Shabbat only
+static lv_obj_t *lbl_rt_value;
+static lv_obj_t *study_separator;            // red line above the study rows
+#define STUDY_SEPARATOR_H 4                  // 4 times the 1 px black row lines
 
 // Column titles for dynamic text updating
 static lv_obj_t *lbl_header_hebrew_month;
@@ -142,7 +151,6 @@ static lv_obj_t *lbl_today_greg;
 static lv_obj_t *lbl_updated;
 static lv_obj_t *lbl_note;
 static lv_obj_t *lbl_zman_values[ZMANIM_COUNT];
-static lv_obj_t *lbl_study_values[STUDY_COUNT];
 
 /** Plain rectangle: no border, padding, radius or scrolling */
 static lv_obj_t * make_box(lv_obj_t *parent, int32_t x, int32_t y, int32_t w, int32_t h)
@@ -195,6 +203,8 @@ static void make_section_title(lv_obj_t *parent, int32_t y, const char *text)
 /**
  * Today's row is taller, 26 px and yellow; the other rows are 22 px.
  * The table height is the same for any day, so nothing below it moves.
+ * The זמני היום rows on the left copy each week row's position and height, so the
+ * row lines of both tables are level (both have 7 rows).
  */
 static void set_today(int today)
 {
@@ -204,10 +214,47 @@ static void set_today(int today)
         int32_t h = is_today ? ROW_H_TODAY : ROW_H;
         lv_obj_set_pos(week_rows[i], WEEK_X, y);
         lv_obj_set_height(week_rows[i], h);
+        if (i < ZMANIM_COUNT) {
+            lv_obj_set_pos(zman_rows[i], INFO_X, y);
+            lv_obj_set_height(zman_rows[i], h);
+        }
         lv_obj_set_style_text_font(week_rows[i], is_today ? &lv_font_heb_26_bold : &lv_font_heb_22_bold, 0);
         lv_obj_set_height(today_marks[i], h - 1);   // keep the row line visible
         lv_obj_set_hidden(today_marks[i], !is_today);
         y += h;
+    }
+    // זמני היום rows beyond the 7 week rows (פלג המנחה) continue below them
+    for (int i = WEEK_DAYS; i < ZMANIM_COUNT; i++) {
+        lv_obj_set_pos(zman_rows[i], INFO_X, y);
+        lv_obj_set_height(zman_rows[i], ROW_H);
+        y += ROW_H;
+    }
+}
+
+/**
+ * Below the time rows, packed with no gaps, all rows as tall as the time rows:
+ * צאת הכוכבים, רבינו תם (Friday and Shabbat only), the red separator in place of
+ * the black line under the last of them, then the study rows. Any space left at
+ * the bottom stays empty.
+ */
+static void layout_lower_left(bool show_rt)
+{
+    int32_t y = LOWER_LEFT_Y;
+    lv_obj_set_pos(tzeit_row, INFO_X, y);
+    y += ROW_H;
+    lv_obj_set_hidden(rt_row, !show_rt);
+    if (show_rt) {
+        lv_obj_set_pos(rt_row, INFO_X, y);
+        y += ROW_H;
+    }
+
+    // The red line covers the 1 px black line at the bottom of the row above it
+    y -= 1;
+    lv_obj_set_pos(study_separator, INFO_X, y);
+    y += STUDY_SEPARATOR_H;
+    for (int i = 0; i < STUDY_COUNT; i++) {
+        lv_obj_set_pos(study_rows[i], INFO_X, y + i * ROW_H);
+        lv_obj_set_height(study_rows[i], ROW_H);
     }
 }
 
@@ -295,15 +342,21 @@ void ui_calendar_update(const struct tm *today) {
         lv_label_set_text(lbl_zman_values[i], t);
     }
 
-    // Sample data until the study and holidays are calculated
-    const char* test_study[]      = {"חולין: קל\"ז", "או\"ח: רס\"א, ג", "כלים: כ\"ט, ב"};
-
     for (int i = 0; i < WEEK_DAYS; i++) {
         lv_label_set_text(lbl_events[i], "");   // holidays: next step
     }
-    for (int i = 0; i < STUDY_COUNT; i++) {
-        lv_label_set_text(lbl_study_values[i], test_study[i]);
+
+    // Daily study: daf yomi is calculated; mishna yomit needs a table ("--" for now)
+    const char *tractate;
+    int daf;
+    if (daf_yomi(today->tm_year + 1900, today->tm_mon + 1, today->tm_mday, &tractate, &daf)) {
+        char num[16];
+        hd_format_number(daf, true, num, sizeof(num));
+        lv_label_set_text_fmt(lbl_study_values[0], "%s: %s", tractate, num);
+    } else {
+        lv_label_set_text(lbl_study_values[0], "--");
     }
+    lv_label_set_text(lbl_study_values[1], "--");   // משנה יומית
 
     // This week's Shabbat: candle lighting on Friday (rules in location.c)
     struct tm friday = *today;
@@ -324,6 +377,26 @@ void ui_calendar_update(const struct tm *today) {
     for (int i = 0; i < CITY_COUNT; i++) {
         show_end_time(lbl_havdalah_city_times[i], &loc_cities[i], &saturday);
     }
+
+    // צאת הכוכבים of today, every day (13.5 seasonal minutes after sunset, see zmanim.h)
+    char buf_eve[8] = "--:--";
+    time_t t_eve;
+    if (zman_tzeit(&loc_main, today->tm_year + 1900, today->tm_mon + 1, today->tm_mday, &t_eve)) {
+        format_time(t_eve, buf_eve, sizeof(buf_eve));
+    }
+    lv_label_set_text(lbl_tzeit_value, buf_eve);
+
+    // רבינו תם (end of this Shabbat, 72 min), on Friday and Shabbat only
+    bool show_rt = today_idx == 5 || today_idx == 6;
+    if (show_rt) {
+        strcpy(buf_eve, "--:--");
+        if (shabbat_end_rabbeinu_tam(&loc_main, saturday.tm_year + 1900, saturday.tm_mon + 1,
+                                     saturday.tm_mday, &t_eve)) {
+            format_time(t_eve, buf_eve, sizeof(buf_eve));
+        }
+        lv_label_set_text(lbl_rt_value, buf_eve);
+    }
+    layout_lower_left(show_rt);
 }
 
 /**
@@ -443,19 +516,39 @@ static void create_info(lv_obj_t *scr)
     // Zmanim: name on the right, time on the left
     make_section_title(scr, ZMANIM_TITLE_Y, "זמני היום");
     for (int i = 0; i < ZMANIM_COUNT; i++) {
-        int32_t y = ZMANIM_TITLE_Y + SECTION_TITLE_H + i * ZMAN_ROW_H;
-        lv_obj_t *row = make_box(scr, INFO_X, y, INFO_W, ZMAN_ROW_H);
+        // Position and height are set by set_today(), level with the week rows
+        int32_t y = ROW_START_Y + i * ROW_H;
+        lv_obj_t *row = make_box(scr, INFO_X, y, INFO_W, ROW_H);
+        zman_rows[i] = row;
         set_bottom_line(row);
         lv_obj_set_style_text_font(row, &lv_font_heb_22_bold, 0);   // one size for the whole row
         make_label(row, zman_names[i], NULL, LV_ALIGN_RIGHT_MID, -INFO_TEXT_PAD, true);
         lbl_zman_values[i] = make_label(row, "--:--", NULL, LV_ALIGN_LEFT_MID, INFO_TEXT_PAD, false);
     }
 
-    // Daily study: name on the right, text on the left
-    make_section_title(scr, STUDY_TITLE_Y, "לימוד יומי");
+    // צאת הכוכבים (every day) and רבינו תם (Friday and Shabbat only);
+    // positions set by layout_lower_left()
+    tzeit_row = make_box(scr, INFO_X, LOWER_LEFT_Y, INFO_W, ROW_H);
+    set_bottom_line(tzeit_row);
+    lv_obj_set_style_text_font(tzeit_row, &lv_font_heb_22_bold, 0);
+    make_label(tzeit_row, "צאת הכוכבים", NULL, LV_ALIGN_RIGHT_MID, -INFO_TEXT_PAD, true);
+    lbl_tzeit_value = make_label(tzeit_row, "--:--", NULL, LV_ALIGN_LEFT_MID, INFO_TEXT_PAD, false);
+
+    rt_row = make_box(scr, INFO_X, LOWER_LEFT_Y, INFO_W, ROW_H);
+    set_bottom_line(rt_row);
+    lv_obj_set_style_text_font(rt_row, &lv_font_heb_22_bold, 0);
+    make_label(rt_row, "רבינו תם", NULL, LV_ALIGN_RIGHT_MID, -INFO_TEXT_PAD, true);
+    lbl_rt_value = make_label(rt_row, "--:--", NULL, LV_ALIGN_LEFT_MID, INFO_TEXT_PAD, false);
+
+    // Red separator above the study rows, 4 times as thick as the black row lines
+    study_separator = make_box(scr, INFO_X, LOWER_LEFT_Y, INFO_W, STUDY_SEPARATOR_H);
+    set_fill(study_separator, EINK_COLOR_RED);
+
+    // Daily study: name on the right, text on the left (no title bar);
+    // position and height set by layout_lower_left()
     for (int i = 0; i < STUDY_COUNT; i++) {
-        int32_t y = STUDY_TITLE_Y + SECTION_TITLE_H + i * STUDY_ROW_H;
-        lv_obj_t *row = make_box(scr, INFO_X, y, INFO_W, STUDY_ROW_H);
+        lv_obj_t *row = make_box(scr, INFO_X, LOWER_LEFT_Y, INFO_W, ROW_H);
+        study_rows[i] = row;
         set_bottom_line(row);
         lv_obj_set_style_text_font(row, &lv_font_heb_22_bold, 0);   // one size for the whole row
         make_label(row, study_names[i], NULL, LV_ALIGN_RIGHT_MID, -INFO_TEXT_PAD, true);
@@ -471,26 +564,24 @@ static void create_info(lv_obj_t *scr)
  * "כ\"ט חשוון תשפ\"ז  28 אוקטובר 2026".
  */
 /**
- * Bottom line, small, at the left: "עודכן 1.10.2026 00:01". If it does not show today's date,
- * the device has stopped updating (the e-paper keeps the last image without power).
- * Two labels: numbers inside one RTL label can be reordered by LVGL.
+ * Bottom line, small, at the left, in English (a debug / health line):
+ *   "Updated 1.10.2026 00:01  #15  NTP 14/15  drift ..."
+ * If it does not show today's date, the device has stopped updating (the e-paper
+ * keeps the last image without power). The note part is filled by the HW.
  */
 static void create_footer(lv_obj_t *scr)
 {
     lv_obj_t *line = make_box(scr, UI_MARGIN, FOOTER_Y, UI_HOR_RES - 2 * UI_MARGIN, FOOTER_H);
-    lv_obj_set_style_base_dir(line, LV_BASE_DIR_RTL, 0);   // "עודכן" first, date to its left
+    lv_obj_set_style_base_dir(line, LV_BASE_DIR_LTR, 0);
     lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
-    // END in a right-to-left row = the left edge of the screen
-    lv_obj_set_flex_align(line, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(line, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(line, 6, 0);
 
     lv_obj_t *title = lv_label_create(line);
-    lv_label_set_text(title, "עודכן");
+    lv_label_set_text(title, "Updated");
     lbl_updated = lv_label_create(line);
-    lv_obj_set_style_base_dir(lbl_updated, LV_BASE_DIR_LTR, 0);
     lv_label_set_text(lbl_updated, "");
-    lbl_note = lv_label_create(line);                       // e.g. a test counter
-    lv_obj_set_style_base_dir(lbl_note, LV_BASE_DIR_LTR, 0);
+    lbl_note = lv_label_create(line);                       // debug info from the HW
     lv_label_set_text(lbl_note, "");
 }
 

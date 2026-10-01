@@ -24,14 +24,14 @@ void ui_calendar_create(void);
 /**
  * Fill the calendar widgets for the week that contains `today` (local time).
  * Its time of day is shown at the bottom as the moment of the update.
- * All dates and times are calculated from it (src/cal); the daily study is still
- * sample data and the events column is still empty.
+ * All dates, times and the daf yomi are calculated from it (src/cal); mishna yomit
+ * shows "--" and the events column is still empty.
  */
 void ui_calendar_update(const struct tm *today);
 
 /**
- * Short extra text at the end of the bottom "עודכן" line, e.g. "#12" (an update
- * counter while testing). Left to right, so keep it to digits / Latin text.
+ * Extra debug text at the end of the bottom "Updated ..." line (English), e.g.
+ * "#15  NTP 14/15  drift +1.8s/26.0h (+50s/30d)" from the HW while testing.
  * NULL or "" = nothing. Call after ui_calendar_create().
  */
 void ui_calendar_set_note(const char *text);

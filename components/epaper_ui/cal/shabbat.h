@@ -36,6 +36,16 @@ bool shabbat_candle_lighting(const city_t *city, int year, int month, int day, t
  */
 bool shabbat_end(const city_t *city, int year, int month, int day, time_t *out);
 
+/** רבינו תם: minutes after sunset */
+#define SHABBAT_RT_MINUTES 72
+
+/**
+ * End of Shabbat according to רבינו תם on the given Saturday: SHABBAT_RT_MINUTES
+ * fixed minutes after sea-level sunset at the city, rounded up (never early).
+ * @param out  UTC time
+ */
+bool shabbat_end_rabbeinu_tam(const city_t *city, int year, int month, int day, time_t *out);
+
 #ifdef __cplusplus
 } /*extern "C"*/
 #endif

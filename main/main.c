@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -20,9 +21,10 @@ static const char *TAG = "MAIN";
 // No valid time (e.g. Wi-Fi down after a power loss): try again after this
 #define RETRY_SLEEP_MIN      15
 
-// Testing: wake every N seconds instead of at midnight (shows the deep-sleep wake
-// path without Wi-Fi). 0 = normal operation (once a day at 00:01).
-// Now: every hour, for a stability test.
+// Testing: wake every N seconds instead of at midnight. 0 = normal operation
+// (once a day at 00:01). Now: every hour, for a stability and clock-drift test:
+// on every wake the internet time is fetched and compared with the ESP32's own
+// clock (which is NOT corrected), see time_sync_measure_drift().
 #define TEST_SLEEP_SECONDS   3600
 
 // Screen updates since the last power-on / reset. Kept in RTC memory: survives deep
@@ -53,6 +55,27 @@ static void deep_sleep_until_tomorrow(void) {
     deep_sleep_for(wake_at > now ? wake_at - now : 60);
 }
 
+/**
+ * Debug text for the bottom line (English):
+ *   "#15  NTP 14/15  drift +1.8s/26.0h (+50s/30d)"
+ * update counter, internet-time answers / tries, measured clock drift and the
+ * same drift scaled to 30 days. Integers only (no float formatting needed).
+ */
+static void format_debug_note(char *buf, size_t len) {
+    time_stats_t st;
+    time_sync_get_stats(&st);
+    int n = snprintf(buf, len, "#%lu  NTP %lu/%lu", (unsigned long)update_count,
+                     (unsigned long)st.ok, (unsigned long)st.tries);
+    if (st.drift_valid && st.hours_x10 > 0 && n > 0 && (size_t)n < len) {
+        long tenths = labs((long)st.drift_ms) / 100;                          // drift in 0.1 s
+        long month_s = labs((long)((int64_t)st.drift_ms * 7200 / st.hours_x10 / 1000));
+        char sign = st.drift_ms < 0 ? '-' : '+';
+        snprintf(buf + n, len - n, "  drift %c%ld.%lds/%ld.%ldh (%c%lds/30d)",
+                 sign, tenths / 10, tenths % 10, (long)st.hours_x10 / 10, (long)st.hours_x10 % 10,
+                 sign, month_s);
+    }
+}
+
 /** Draw today's calendar once, then deep sleep until tomorrow */
 static void display_task(void *arg) {
     lv_init();
@@ -65,9 +88,9 @@ static void display_task(void *arg) {
     ui_calendar_create();
     ui_calendar_update(&today);
 
-    char note[16];
+    char note[96];
     update_count++;
-    snprintf(note, sizeof(note), "#%lu", (unsigned long)update_count);
+    format_debug_note(note, sizeof(note));
     ui_calendar_set_note(note);
 
     ESP_LOGI(TAG, "Update %s, free internal heap: %u bytes", note,
@@ -88,6 +111,12 @@ void app_main(void) {
     if (!time_sync_ensure()) {
         ESP_LOGE(TAG, "No valid time, screen not updated");
         deep_sleep_for(RETRY_SLEEP_MIN * 60);
+    }
+
+    // Test mode: measure the clock drift against the internet on every wake
+    // (the clock itself is not changed; the calendar uses the ESP32's own time)
+    if (TEST_SLEEP_SECONDS > 0) {
+        time_sync_measure_drift();
     }
 
     xTaskCreate(display_task, "display", LVGL_TASK_STACK_SIZE, NULL, 5, NULL);

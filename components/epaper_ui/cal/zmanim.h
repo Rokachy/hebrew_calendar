@@ -12,6 +12,7 @@
  *   סו"ז תפילה        4 seasonal hours after sunrise (גר"א)
  *   חצות היום         half way between sunrise and sunset
  *   מנחה גדולה        חצות + 30 fixed minutes
+ *   פלג המנחה         1.25 seasonal hours (גר"א) before sunset
  *
  * Changes made to match the family's printed calendar:
  *   - עלות השחר was the sun 16.1 degrees below the horizon (Hebcal's definition),
@@ -52,6 +53,7 @@ typedef enum {
     ZMAN_TFILA_GRA,     /**< סו"ז תפילה גר"א */
     ZMAN_CHATZOT,       /**< חצות היום */
     ZMAN_MINCHA_GEDOLA, /**< מנחה גדולה */
+    ZMAN_PLAG,          /**< פלג המנחה */
     ZMAN_COUNT
 } zman_t;
 
@@ -66,6 +68,17 @@ bool zmanim_calc(const city_t *city, int year, int month, int day, time_t out[ZM
  * deadlines (סוף זמן) and עלות השחר (start of a fast) down, חצות to the nearest minute.
  */
 time_t zman_rounded(zman_t which, time_t exact);
+
+/**
+ * צאת הכוכבים of the day: 13.5 seasonal minutes (גר"א) after sea-level sunset,
+ * rounded up. Matched to the family's printed calendar (week of 27 Sep 2026:
+ * 6:45 ... 6:37). A fixed 14 minutes also fits that week; the family chose 13.5
+ * seasonal minutes (not yet compared in winter / summer: 20 Dec 2026 would be
+ * 4:52, a fixed 14 min 4:54). Not used for the end of Shabbat, which is 8.5
+ * degrees (shabbat.h).
+ * @param out  UTC time, already rounded
+ */
+bool zman_tzeit(const city_t *city, int year, int month, int day, time_t *out);
 
 #ifdef __cplusplus
 } /*extern "C"*/

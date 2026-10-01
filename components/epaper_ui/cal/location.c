@@ -12,7 +12,8 @@
  *
  * End of Shabbat (יציאת השבת) is the same rule everywhere: צאת הכוכבים, the sun
  * 8.5 degrees below the horizon on Saturday evening at that city
- * (SHABBAT_END_DEPRESSION in shabbat.h).
+ * (SHABBAT_END_DEPRESSION in shabbat.h). רבינו תם (shown on Friday and Shabbat
+ * only): 72 fixed minutes after sunset (SHABBAT_RT_MINUTES).
  *
  * Sunrise in the week table is the visible sunrise (הנץ הנראה): the sun appears
  * over the hills east of the city, a few minutes after sea-level sunrise.
