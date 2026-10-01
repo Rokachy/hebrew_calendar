@@ -104,10 +104,12 @@ The first screen appears about 20–25 s after boot.
 
 ## Designs
 
-| Branch | Design |
+`main` has the current landscape design. Earlier designs are kept as tags:
+
+| Tag | Design |
 |---|---|
-| `new_look` | landscape (current) |
-| `std_look` | the earlier portrait design |
+| `new_look_tag` | first version of the landscape design |
+| `std_look_tag` | the earlier portrait design |
 
 ## Still to do
 

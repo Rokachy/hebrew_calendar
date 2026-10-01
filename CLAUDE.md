@@ -37,8 +37,8 @@
   Keep large buffers in internal RAM, no full-screen RGB buffers. LVGL renders in
   ~38 KB RGB565 strips and packs them into a 96 KB 2bpp frame.
 - UI size is `UI_HOR_RES`/`UI_VER_RES` in `ui_calendar.h`; `EPD_ROTATION` in
-  `epd_lvgl_port.c` must match (0 = landscape 800x480, 90/270 = portrait). Branch
-  `std_look` = portrait design (270), `new_look` = landscape design (0).
+  `epd_lvgl_port.c` must match (0 = landscape 800x480, 90/270 = portrait). `main` =
+  landscape design (0); tag `std_look_tag` = old portrait design (270).
 - LVGL <-> panel: `main/epd_panel.c` fills an `epd_hw_ops_t` (init/show) passed to
   `epd_lvgl_port_init()`. Function pointers, so epaper_ui never links against main.
 - LVGL 9.6 via component manager, configured in sdkconfig (no lv_conf.h): colour depth 16,
