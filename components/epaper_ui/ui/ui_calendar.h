@@ -23,10 +23,18 @@ void ui_calendar_create(void);
 
 /**
  * Fill the calendar widgets for the week that contains `today` (local time).
- * Gregorian dates, the top date line and the "today" highlight come from it;
- * the Hebrew dates, times and study are still sample data.
+ * Its time of day is shown at the bottom as the moment of the update.
+ * All dates and times are calculated from it (src/cal); the daily study is still
+ * sample data and the events column is still empty.
  */
 void ui_calendar_update(const struct tm *today);
+
+/**
+ * Short extra text at the end of the bottom "עודכן" line, e.g. "#12" (an update
+ * counter while testing). Left to right, so keep it to digits / Latin text.
+ * NULL or "" = nothing. Call after ui_calendar_create().
+ */
+void ui_calendar_set_note(const char *text);
 
 #ifdef __cplusplus
 } /*extern "C"*/

@@ -24,11 +24,13 @@ static const char *TAG = "TIME";
 // Israel: UTC+2, summer time from the Friday before the last Sunday of March
 // 02:00 to the last Sunday of October 02:00
 #define TZ_ISRAEL         "IST-2IDT,M3.4.4/26,M10.5.0"
-#define NTP_SERVER        "pool.ntp.org"
+// Three servers (CONFIG_LWIP_SNTP_MAX_SERVERS=3): if one is down, another answers
+#define NTP_SERVER_COUNT  3
+#define NTP_SERVERS       { "pool.ntp.org", "time.google.com", "time.cloudflare.com" }
 #define TIME_VALID_AFTER  1704067200   // 2024-01-01 00:00 UTC
 #define WIFI_TIMEOUT_MS   20000
 #define WIFI_MAX_RETRY    5
-#define SNTP_TIMEOUT_MS   15000
+#define SNTP_TIMEOUT_MS   30000
 
 // Kept in RTC memory: survives deep sleep (not a power loss)
 static RTC_DATA_ATTR time_t last_sync;
@@ -93,13 +95,13 @@ static bool sync_over_wifi(void) {
                                            pdFALSE, pdFALSE, pdMS_TO_TICKS(WIFI_TIMEOUT_MS));
     bool synced = false;
     if (bits & WIFI_CONNECTED_BIT) {
-        esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG(NTP_SERVER);
+        esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(NTP_SERVER_COUNT, NTP_SERVERS);
         esp_netif_sntp_init(&sntp_cfg);
         if (esp_netif_sntp_sync_wait(pdMS_TO_TICKS(SNTP_TIMEOUT_MS)) == ESP_OK) {
             last_sync = time(NULL);
             synced = true;
         } else {
-            ESP_LOGW(TAG, "No answer from the time server");
+            ESP_LOGW(TAG, "No answer from the time servers (NTP, UDP port 123 - blocked on this network?)");
         }
         esp_netif_sntp_deinit();
     } else {
@@ -128,7 +130,7 @@ bool time_sync_ensure(void) {
     if (!due) {
         ESP_LOGI(TAG, "RTC time is valid, no Wi-Fi needed");
     } else if (sync_over_wifi()) {
-        ESP_LOGI(TAG, "Time synced from %s", NTP_SERVER);
+        ESP_LOGI(TAG, "Time synced over NTP");
     } else if (time_is_valid()) {
         ESP_LOGW(TAG, "Sync failed, keeping the RTC time");
     }

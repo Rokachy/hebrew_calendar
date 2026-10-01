@@ -3,6 +3,8 @@
 
 CONFIG_IDF_TARGET="esp32s3"
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+# App partition 1.5 MB (the default 1 MB is too small once Wi-Fi is linked in)
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
 
 # Current board (WROOM) has no PSRAM. The final ESP32-S3-MINI N4R2 has 2 MB quad
 # PSRAM; enable it then with CONFIG_SPIRAM=y + CONFIG_SPIRAM_MODE_QUAD=y.
@@ -12,6 +14,9 @@ CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_FREERTOS_HZ=1000
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# Internet time: up to 3 NTP servers (see main/time_sync.c)
+CONFIG_LWIP_SNTP_MAX_SERVERS=3
 
 # LVGL (configured through Kconfig, no lv_conf.h). Keep in sync with the
 # simulator's lv_conf.h in C:\work\hebrew_calendar_sim.

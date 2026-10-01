@@ -78,6 +78,10 @@ LV_FONT_DECLARE(lv_font_heb_112);     // Shabbat times, Bold (digits and ":" onl
 #define CITY_STRIP_Y    (BIG_TIME_Y + BIG_TIME_H + 4)
 #define CITY_STRIP_H    30  // "name time" on one line per city
 
+// ---- Bottom line: when the screen was last updated ----
+#define FOOTER_Y        (CITY_STRIP_Y + CITY_STRIP_H + 2)
+#define FOOTER_H        (UI_VER_RES - FOOTER_Y)
+
 // ---- Left panel: zmanim and daily study ----
 #define INFO_X          UI_MARGIN
 #define INFO_W          270
@@ -135,6 +139,8 @@ static lv_obj_t *lbl_havdalah_city_times[CITY_COUNT];
 // Left panel values
 static lv_obj_t *lbl_today_hebrew;
 static lv_obj_t *lbl_today_greg;
+static lv_obj_t *lbl_updated;
+static lv_obj_t *lbl_note;
 static lv_obj_t *lbl_zman_values[ZMANIM_COUNT];
 static lv_obj_t *lbl_study_values[STUDY_COUNT];
 
@@ -270,6 +276,10 @@ void ui_calendar_update(const struct tm *today) {
     hdate_t hd_today = hd_from_greg(today->tm_year + 1900, today->tm_mon + 1, today->tm_mday);
     hd_format_date(&hd_today, buf, sizeof(buf));
     lv_label_set_text(lbl_today_hebrew, buf);
+    // Bottom line: the moment this screen was drawn (health check for the device)
+    lv_label_set_text_fmt(lbl_updated, "%d.%d.%d %02d:%02d", today->tm_mday, today->tm_mon + 1,
+                          today->tm_year + 1900, today->tm_hour, today->tm_min);
+
     lv_label_set_text_fmt(lbl_today_greg, "%d %s %d", today->tm_mday,
                           greg_months[today->tm_mon], today->tm_year + 1900);
     lv_label_set_text(lbl_header_hebrew_month, hd_month_name(hd_today.month, hd_today.year));
@@ -460,6 +470,34 @@ static void create_info(lv_obj_t *scr)
  * Full month names fit here (the line spans the whole screen), e.g.
  * "כ\"ט חשוון תשפ\"ז  28 אוקטובר 2026".
  */
+/**
+ * Bottom line, small, at the left: "עודכן 1.10.2026 00:01". If it does not show today's date,
+ * the device has stopped updating (the e-paper keeps the last image without power).
+ * Two labels: numbers inside one RTL label can be reordered by LVGL.
+ */
+static void create_footer(lv_obj_t *scr)
+{
+    lv_obj_t *line = make_box(scr, UI_MARGIN, FOOTER_Y, UI_HOR_RES - 2 * UI_MARGIN, FOOTER_H);
+    lv_obj_set_style_base_dir(line, LV_BASE_DIR_RTL, 0);   // "עודכן" first, date to its left
+    lv_obj_set_flex_flow(line, LV_FLEX_FLOW_ROW);
+    // END in a right-to-left row = the left edge of the screen
+    lv_obj_set_flex_align(line, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(line, 6, 0);
+
+    lv_obj_t *title = lv_label_create(line);
+    lv_label_set_text(title, "עודכן");
+    lbl_updated = lv_label_create(line);
+    lv_obj_set_style_base_dir(lbl_updated, LV_BASE_DIR_LTR, 0);
+    lv_label_set_text(lbl_updated, "");
+    lbl_note = lv_label_create(line);                       // e.g. a test counter
+    lv_obj_set_style_base_dir(lbl_note, LV_BASE_DIR_LTR, 0);
+    lv_label_set_text(lbl_note, "");
+}
+
+void ui_calendar_set_note(const char *text) {
+    if (lbl_note) lv_label_set_text(lbl_note, text ? text : "");
+}
+
 static void create_today(lv_obj_t *scr)
 {
     lv_obj_t *line = make_box(scr, UI_MARGIN, TODAY_Y, UI_HOR_RES - 2 * UI_MARGIN, TODAY_H);
@@ -494,6 +532,7 @@ void ui_calendar_create(void) {
     lv_obj_set_style_text_font(scr, &lv_font_heb_18_bold, 0);
 
     create_today(scr);
+    create_footer(scr);
     create_week(scr);
     create_info(scr);
 }

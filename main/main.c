@@ -1,9 +1,11 @@
+#include <stdio.h>
 #include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "esp_sleep.h"
+#include "esp_attr.h"
 #include "lvgl.h"
 #include "epd_lvgl_port.h"
 #include "epd_panel.h"
@@ -18,9 +20,15 @@ static const char *TAG = "MAIN";
 // No valid time (e.g. Wi-Fi down after a power loss): try again after this
 #define RETRY_SLEEP_MIN      15
 
-// Testing: set to e.g. 120 to wake every 2 minutes instead of at midnight
-// (shows the deep-sleep wake path without Wi-Fi). 0 = normal operation.
-#define TEST_SLEEP_SECONDS   0
+// Testing: wake every N seconds instead of at midnight (shows the deep-sleep wake
+// path without Wi-Fi). 0 = normal operation (once a day at 00:01).
+// Now: every hour, for a stability test.
+#define TEST_SLEEP_SECONDS   3600
+
+// Screen updates since the last power-on / reset. Kept in RTC memory: survives deep
+// sleep, cleared by a power loss or a crash - so on the screen ("#12") it shows
+// whether the device has been running without resets.
+static RTC_DATA_ATTR uint32_t update_count;
 
 static void deep_sleep_for(time_t seconds) {
     ESP_LOGI(TAG, "Deep sleep for %lld s", (long long)seconds);
@@ -57,7 +65,12 @@ static void display_task(void *arg) {
     ui_calendar_create();
     ui_calendar_update(&today);
 
-    ESP_LOGI(TAG, "UI created, free internal heap: %u bytes",
+    char note[16];
+    update_count++;
+    snprintf(note, sizeof(note), "#%lu", (unsigned long)update_count);
+    ui_calendar_set_note(note);
+
+    ESP_LOGI(TAG, "Update %s, free internal heap: %u bytes", note,
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 
     // Render and send to the panel now (blocks ~20 s for the panel refresh)
@@ -67,8 +80,9 @@ static void display_task(void *arg) {
 }
 
 void app_main(void) {
-    ESP_LOGI(TAG, "=== Hebrew calendar, GDEM075F52 === (wake cause %d)",
-             (int)esp_sleep_get_wakeup_cause());
+    // Bit mask of esp_sleep_wakeup_cause_t; 0 = power-on / reset, timer = deep-sleep wake
+    ESP_LOGI(TAG, "=== Hebrew calendar, GDEM075F52 === (wake causes 0x%lx)",
+             (unsigned long)esp_sleep_get_wakeup_causes());
 
     // Wi-Fi only when the RTC has no valid time or a resync is due
     if (!time_sync_ensure()) {
