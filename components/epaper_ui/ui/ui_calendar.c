@@ -25,13 +25,14 @@
 #include "shabbat.h"
 #include "zmanim.h"
 #include "daf_yomi.h"
+#include "mishna_yomit.h"
 #include "holidays.h"
 #include "parsha.h"
 #include "family_dates.h"
 
 // Fonts compiled from ui/fonts/
-LV_FONT_DECLARE(lv_font_heb_13_bold); // long events only, see fit_event()
-LV_FONT_DECLARE(lv_font_heb_15_bold); // long events only
+LV_FONT_DECLARE(lv_font_heb_13_bold); // long events and study texts, see fit_event(), fit_study()
+LV_FONT_DECLARE(lv_font_heb_15_bold); // long events and study texts
 LV_FONT_DECLARE(lv_font_heb_18_bold); // default: small texts (cities, bottom line)
 LV_FONT_DECLARE(lv_font_heb_22_bold); // day names, titles, zmanim values
 LV_FONT_DECLARE(lv_font_heb_26_bold); // dates
@@ -105,7 +106,7 @@ LV_FONT_DECLARE(lv_font_heb_112);     // Shabbat times, Bold (digits and ":" onl
 #define STUDY_COUNT     2
 
 static const char * const study_names[STUDY_COUNT] = {
-    "דף יומי", "משנה יומית",
+    "דף יומי", "משנה",
 };
 
 static const char * const zman_names[ZMANIM_COUNT] = {
@@ -224,6 +225,27 @@ static void fit_event(lv_obj_t *lbl, const lv_font_t *font)
     }
     lv_obj_set_style_text_font(lbl, font, 0);
     lv_obj_set_height(lbl, lv_font_get_line_height(font));
+}
+
+/** A study row's text: 22 px if it fits beside the row's name, else the first
+ *  smaller font it fits in (18, 15, 13). Mishna yomit across two tractates
+ *  ("בבא קמא: י, י - בבא מציעא: א, א") needs a smaller one. */
+static void fit_study(int row)
+{
+    const lv_font_t *const fonts[] = { &lv_font_heb_22_bold, &lv_font_heb_18_bold,
+                                       &lv_font_heb_15_bold, &lv_font_heb_13_bold };
+    lv_text_attributes_t attr;
+    lv_text_attributes_init(&attr);
+    const char *name = study_names[row];
+    int32_t space = INFO_W - 2 * INFO_TEXT_PAD - 10
+                    - lv_text_get_width(name, strlen(name), &lv_font_heb_22_bold, &attr);
+    const char *text = lv_label_get_text(lbl_study_values[row]);
+    const lv_font_t *font = NULL;
+    for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {
+        font = fonts[i];
+        if (lv_text_get_width(text, strlen(text), font, &attr) <= space) break;
+    }
+    lv_obj_set_style_text_font(lbl_study_values[row], font, 0);
 }
 
 /**
@@ -387,7 +409,7 @@ void ui_calendar_update(const struct tm *today) {
     }
 
 
-    // Daily study: daf yomi is calculated; mishna yomit needs a table ("--" for now)
+    // Daily study: daf yomi and mishna yomit, both calculated from the date
     const char *tractate;
     int daf;
     if (daf_yomi(today->tm_year + 1900, today->tm_mon + 1, today->tm_mday, &tractate, &daf)) {
@@ -397,7 +419,10 @@ void ui_calendar_update(const struct tm *today) {
     } else {
         lv_label_set_text(lbl_study_values[0], "--");
     }
-    lv_label_set_text(lbl_study_values[1], "--");   // משנה יומית
+    char mishna[96];
+    mishna_yomit_format(today->tm_year + 1900, today->tm_mon + 1, today->tm_mday, mishna, sizeof(mishna));
+    lv_label_set_text(lbl_study_values[1], mishna);
+    for (int i = 0; i < STUDY_COUNT; i++) fit_study(i);
 
     // This week's Shabbat: candle lighting on Friday (rules in location.c)
     struct tm friday = *today;
