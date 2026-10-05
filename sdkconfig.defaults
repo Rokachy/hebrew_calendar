@@ -10,6 +10,12 @@ CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
 # PSRAM; enable it then with CONFIG_SPIRAM=y + CONFIG_SPIRAM_MODE_QUAD=y.
 # CONFIG_SPIRAM is not set
 
+# RTC slow clock from the 32.768 kHz crystal on GPIO15/16 (XTAL_32K_P/N), Citizen
+# CM315D32768HZFT (+-5 ppm, CL 12.5 pF) with 18 pF to GND on each leg. If it does
+# not start, ESP-IDF falls back to the internal RC (~0.2% = minutes per day); the
+# boot log line "RTC slow clock: ..." (main.c) shows which one is used.
+CONFIG_RTC_CLK_SRC_EXT_CRYS=y
+
 CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
 CONFIG_FREERTOS_HZ=1000
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
