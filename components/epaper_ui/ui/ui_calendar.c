@@ -529,7 +529,7 @@ static void create_week(lv_obj_t *scr)
         // Event: black on orange (only on days with an event), font in fit_event()
         cell = make_box(row, EVENT_X, 0, EVENT_W, ROW_H - 1);
         event_cells[i] = cell;
-        set_fill(cell, EINK_COLOR_ORANGE);
+        set_fill(cell, EINK_COLOR_YELLOW);
         lbl_events[i] = make_label(cell, "", NULL, LV_ALIGN_CENTER, 0, true);
         lv_obj_set_style_text_color(lbl_events[i], EINK_COLOR_BLACK, 0);
         // Fixed width, one line (height in set_today): text that does not fit ends with "..."
