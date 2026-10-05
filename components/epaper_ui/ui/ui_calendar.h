@@ -24,8 +24,8 @@ void ui_calendar_create(void);
 /**
  * Fill the calendar widgets for the week that contains `today` (local time).
  * Its time of day is shown at the bottom as the moment of the update.
- * All dates, times, the daf yomi and the mishna yomit are calculated from it
- * (src/cal); the events column is still empty.
+ * All dates, times, the daf yomi, the mishna yomit and the events (holidays,
+ * family dates) are calculated from it (src/cal).
  */
 void ui_calendar_update(const struct tm *today);
 

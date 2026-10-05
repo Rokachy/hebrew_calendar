@@ -8,3 +8,6 @@
 
 # Private family dates, synced from the simulator (template: family.example.h)
 /components/epaper_ui/cal/family.h
+
+# ESP-IDF backup of the previous sdkconfig (menuconfig / reconfigure)
+/sdkconfig.old
