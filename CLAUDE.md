@@ -3,7 +3,7 @@
   Goal: a Hebrew calendar shown on a Good Display 7.5" 4-color e-paper panel.
 
   ## Hardware
-  - MCU: ESP32-S3, ESP-IDF v6.0.1 (install: `C:\esp-idf\.espressif\v6.0.1\esp-idf`), serial
+  - MCU: ESP32-S3, ESP-IDF v6.1 (install: `C:\esp-idf\.espressif\esp-idf-v6.1`), serial
   port COM9.
   - Panel: Good Display GDEM075F52, 800x480, Black/White/Yellow/Red. Controller JD79668 (not
   UC8179).
@@ -25,7 +25,7 @@
   - The hardware test this came from: `C:\Projects\esp_epaper\examples\esp32_wroom_4color`.
 
   ## Build
-  From PowerShell: `. C:\Espressif\tools\Microsoft.v6.0.1.PowerShell_profile.ps1` then
+  From PowerShell: `. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1` then
   `idf.py build` / `idf.py -p COM9 flash monitor`.
 
   ## Display / UI (shared with the simulator repo)
