@@ -6,8 +6,8 @@ CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 # App partition 1.5 MB (the default 1 MB is too small once Wi-Fi is linked in)
 CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
 
-# Current board (WROOM) has no PSRAM. The final ESP32-S3-MINI N4R2 has 2 MB quad
-# PSRAM; enable it then with CONFIG_SPIRAM=y + CONFIG_SPIRAM_MODE_QUAD=y.
+# No PSRAM: the WROOM has none; the ESP32-S3-Zero's 2 MB quad PSRAM is not needed
+# (CONFIG_SPIRAM=y + CONFIG_SPIRAM_MODE_QUAD=y if it ever is; then WROOM won't boot).
 # CONFIG_SPIRAM is not set
 
 # RTC slow clock from the 32.768 kHz crystal on GPIO15/16 (XTAL_32K_P/N), Citizen

@@ -8,13 +8,14 @@
  * Controller: JD79668 (NOT UC8179 - different init, 2bpp, BUSY active LOW)
  */
 
-// ESP32-S3 GPIO mapping
-#define EPD_PIN_BUSY     9
-#define EPD_PIN_RST      10
-#define EPD_PIN_DC       11
-#define EPD_PIN_CS       12
-#define EPD_PIN_CLK      13
-#define EPD_PIN_MOSI     14
+// ESP32-S3 GPIO mapping: GPIO 7-12, one row on the ESP32-S3-Zero header (the same
+// pins on the ESP32-S3-WROOM dev board)
+#define EPD_PIN_BUSY     7
+#define EPD_PIN_RST      8
+#define EPD_PIN_DC       9
+#define EPD_PIN_CS       10
+#define EPD_PIN_CLK      11
+#define EPD_PIN_MOSI     12
 
 #define EPD_WIDTH        800
 #define EPD_HEIGHT       480

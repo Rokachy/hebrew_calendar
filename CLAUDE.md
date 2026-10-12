@@ -3,11 +3,12 @@
   Goal: a Hebrew calendar shown on a Good Display 7.5" 4-color e-paper panel.
 
   ## Hardware
-  - MCU: ESP32-S3, ESP-IDF v6.1 (install: `C:\esp-idf\.espressif\esp-idf-v6.1`), serial
-  port COM9.
+  - MCU: ESP32-S3, ESP-IDF v6.1 (install: `C:\esp-idf\.espressif\esp-idf-v6.1`). Boards: ESP32-S3-WROOM
+  dev board (serial port COM9) and Waveshare ESP32-S3-Zero (native USB, its own COM port).
+  One build runs on both.
   - Panel: Good Display GDEM075F52, 800x480, Black/White/Yellow/Red. Controller JD79668 (not
   UC8179).
-  - Pins: BUSY=9, RST=10, DC=11, CS=12, CLK=13, MOSI=14 (SPI2_HOST).
+  - Pins: BUSY=7, RST=8, DC=9, CS=10, CLK=11, MOSI=12 (SPI2_HOST), same on both boards.
 
   ## Panel facts that are easy to get wrong
   - BUSY is active LOW: LOW = busy, HIGH = ready.
@@ -33,8 +34,9 @@
   (C:\work\hebrew_calendar_sim, GitHub Rokachy/hebrew_calendar_sim). Edit it there, then run
   `powershell -ExecutionPolicy Bypass -File C:\work\hebrew_calendar_sim\tools\sync_to_hw.ps1`.
   Never edit it here: the sync overwrites it.
-- ESP32-S3-WROOM has no PSRAM (final board: ESP32-S3-MINI N4R2, 2 MB quad PSRAM).
-  Keep large buffers in internal RAM, no full-screen RGB buffers. LVGL renders in
+- No PSRAM is used: the WROOM has none, the ESP32-S3-Zero's 2 MB stays off (not needed,
+  and one build keeps running on both). The Zero has no 32.768 kHz crystal: ESP-IDF falls
+  back to the internal RC (~3 min/day drift), fine on mains power. Keep large buffers in internal RAM, no full-screen RGB buffers. LVGL renders in
   ~38 KB RGB565 strips and packs them into a 96 KB 2bpp frame.
 - UI size is `UI_HOR_RES`/`UI_VER_RES` in `ui_calendar.h`; `EPD_ROTATION` in
   `epd_lvgl_port.c` must match (0 = landscape 800x480, 90/270 = portrait). `main` =

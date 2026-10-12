@@ -23,10 +23,10 @@ The UI is designed and tested in a PC simulator:
 
 | Part | Details |
 |---|---|
-| MCU | ESP32-S3-WROOM, no PSRAM (planned final board: ESP32-S3-MINI N4R2, 2 MB PSRAM) |
+| MCU | ESP32-S3-WROOM dev board or Waveshare ESP32-S3-Zero, same build (PSRAM not used) |
 | Panel | Good Display GDEM075F52, 800x480, black/white/yellow/red, controller JD79668 |
-| SPI (SPI2) | CLK 13, MOSI 14, CS 12 |
-| Control | DC 11, RST 10, BUSY 9 (BUSY is active low) |
+| SPI (SPI2) | CLK 11, MOSI 12, CS 10 |
+| Control | DC 9, RST 8, BUSY 7 (BUSY is active low) |
 
 The panel only supports a full refresh, which takes about 20 s. After every
 update it goes into deep sleep and is re-initialised before the next one.
@@ -95,10 +95,13 @@ copy main\wifi_secrets.example.h main\wifi_secrets.h   # then edit the name and 
 ```
 
 ```powershell
-. C:\Espressif\tools\Microsoft.v6.0.1.PowerShell_profile.ps1
+. C:\Espressif\tools\Microsoft.v6.1.PowerShell_profile.ps1
 idf.py build
 idf.py -p COM9 flash monitor
 ```
+
+COM9 is the WROOM dev board; the ESP32-S3-Zero uses its native USB and gets its own
+COM port (hold BOOT while plugging it in if it does not show up).
 
 The first screen appears about 20–25 s after boot.
 
@@ -108,15 +111,13 @@ The first screen appears about 20–25 s after boot.
 
 | Tag | Design |
 |---|---|
+| `wroom_tag` | current design, tested on the ESP32-S3-WROOM with the GPIO 7-12 wiring |
 | `new_look_tag` | first version of the landscape design |
 | `std_look_tag` | the earlier portrait design |
 
 ## Still to do
 
-- Daily study (daf yomi can be calculated; mishna / halacha yomit need a table)
-- Holidays and events in the events column
-- Measure the clock drift and tune the resync interval
-- Move to the final ESP32-S3-MINI board
+- Run on the ESP32-S3-Zero; measure the deep-sleep current (decides battery or mains)
 
 ## Licence
 
