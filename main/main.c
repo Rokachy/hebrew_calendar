@@ -14,6 +14,8 @@
 #include "epd_panel.h"
 #include "ui_calendar.h"
 #include "time_sync.h"
+#include "power_config.h"
+#include "location.h"
 
 static const char *TAG = "MAIN";
 
@@ -23,12 +25,11 @@ static const char *TAG = "MAIN";
 // No valid time (e.g. Wi-Fi down after a power loss): try again after this
 #define RETRY_SLEEP_MIN      15
 
-// Testing: wake every N seconds instead of at midnight. 0 = normal operation
-// (once a day at 00:01). Now: every hour, on the full hour of the ESP32's own
-// clock (10:00:00, 11:00:00, ...), for a clock-drift test: the internet time is
-// only fetched once, the wake log line ("Wake 11:00:00.012") is compared with
-// the PC clock in the UART log.
-#define TEST_SLEEP_SECONDS   3600
+// Testing: wake every N seconds instead of the normal schedule. 0 = normal
+// operation (00:01, and sunset on mains power - see power_config.h). E.g. 3600
+// wakes on the full hour of the ESP32's own clock for a clock-drift test: the
+// wake log line ("Wake 11:00:00.012") is compared with the PC clock in the UART log.
+#define TEST_SLEEP_SECONDS   0
 
 // Screen updates since the last power-on / reset. Kept in RTC memory: survives deep
 // sleep, cleared by a power loss or a crash - so on the screen ("#12") it shows
@@ -91,14 +92,27 @@ static void deep_sleep_until_next(time_t period) {
     esp_deep_sleep_start();
 }
 
-/** Sleep until one minute after the next local midnight */
-static void deep_sleep_until_tomorrow(void) {
+/**
+ * Sleep until the next screen update: one minute after the next local midnight,
+ * and on mains power also today's sunset (when the Hebrew date changes) if it
+ * is still ahead.
+ */
+static void deep_sleep_until_next_update(void) {
     if (TEST_SLEEP_SECONDS > 0) {
         deep_sleep_until_next(TEST_SLEEP_SECONDS);
     }
     time_t now = time(NULL);
     struct tm wake;
     localtime_r(&now, &wake);
+
+#if POWER_SOURCE == POWER_MAINS
+    time_t sunset;
+    if (city_sunrise_sunset(&loc_main, wake.tm_year + 1900, wake.tm_mon + 1, wake.tm_mday,
+                            false, &sunset) && sunset - now >= 60) {
+        deep_sleep_for(sunset - now + 60);   // a minute late, as 00:01: surely after sunset
+    }
+#endif
+
     wake.tm_mday += 1;
     wake.tm_hour = 0;
     wake.tm_min = 1;
@@ -132,7 +146,7 @@ static void format_debug_note(char *buf, size_t len) {
     }
 }
 
-/** Draw today's calendar once, then deep sleep until tomorrow */
+/** Draw today's calendar once, then deep sleep until the next update */
 static void display_task(void *arg) {
     lv_init();
     epd_lvgl_port_init(&epd_panel_ops);
@@ -155,7 +169,7 @@ static void display_task(void *arg) {
     // Render and send to the panel now (blocks ~20 s for the panel refresh)
     lv_refr_now(NULL);
 
-    deep_sleep_until_tomorrow();
+    deep_sleep_until_next_update();
 }
 
 void app_main(void) {

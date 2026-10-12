@@ -385,8 +385,20 @@ void ui_calendar_update(const struct tm *today) {
     }
     set_today(today_idx);
 
-    // Top line and column headers: today's Hebrew and Gregorian date
-    hdate_t hd_today = hd_from_greg(today->tm_year + 1900, today->tm_mon + 1, today->tm_mday);
+    // Top line and column headers: today's Hebrew and Gregorian date. The Hebrew date
+    // starts at sunset, so after sunset the top line already shows tomorrow's; the
+    // week table (its month header, the highlight) changes at midnight.
+    struct tm heb_day = *today;
+    struct tm now_tm = *today;
+    time_t sunset;
+    if (city_sunrise_sunset(&loc_main, today->tm_year + 1900, today->tm_mon + 1, today->tm_mday,
+                            false, &sunset) && mktime(&now_tm) >= sunset) {
+        heb_day.tm_mday += 1;
+        heb_day.tm_hour = 12;          // midday: safe from DST changes
+        heb_day.tm_isdst = -1;
+        mktime(&heb_day);
+    }
+    hdate_t hd_today = hd_from_greg(heb_day.tm_year + 1900, heb_day.tm_mon + 1, heb_day.tm_mday);
     hd_format_date(&hd_today, buf, sizeof(buf));
     lv_label_set_text(lbl_today_hebrew, buf);
     // Bottom line: the moment this screen was drawn (health check for the device)
@@ -395,7 +407,8 @@ void ui_calendar_update(const struct tm *today) {
 
     lv_label_set_text_fmt(lbl_today_greg, "%d %s %d", today->tm_mday,
                           greg_months[today->tm_mon], today->tm_year + 1900);
-    lv_label_set_text(lbl_header_hebrew_month, hd_month_name(hd_today.month, hd_today.year));
+    hdate_t hd_civil = hd_from_greg(today->tm_year + 1900, today->tm_mon + 1, today->tm_mday);
+    lv_label_set_text(lbl_header_hebrew_month, hd_month_name(hd_civil.month, hd_civil.year));
     lv_label_set_text(lbl_header_month, greg_months_short[today->tm_mon]);
 
     // Today's זמני היום at the main location (definitions in zmanim.h)

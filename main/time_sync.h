@@ -7,11 +7,18 @@
  *
  * The RTC keeps running in deep sleep, so Wi-Fi is only used when needed:
  *  - the time is not valid (first start or after power loss), or
- *  - the last internet sync is older than TIME_RESYNC_DAYS (RTC drift).
+ *  - the last internet sync is older than TIME_RESYNC_DAYS (RTC drift);
+ *    every day on mains power, see power_config.h.
  * Wi-Fi is switched off again before returning, to free its RAM for LVGL.
  */
 
+#include "power_config.h"
+
+#if POWER_SOURCE == POWER_MAINS
+#define TIME_RESYNC_DAYS  1
+#else
 #define TIME_RESYNC_DAYS  30
+#endif
 
 /** Set the timezone and sync over Wi-Fi if needed. Returns true if the time is valid. */
 bool time_sync_ensure(void);

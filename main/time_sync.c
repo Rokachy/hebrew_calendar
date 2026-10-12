@@ -186,8 +186,10 @@ bool time_sync_ensure(void) {
     tzset();
 
     time_t now = time(NULL);
+    // An hour of slack: the wakes are at the same times every day, so with exactly
+    // N days a sync at 00:01:05 would not be due at 00:01:00 N days later
     bool due = !time_is_valid() || last_sync == 0 ||
-               now - last_sync > (time_t)TIME_RESYNC_DAYS * 24 * 3600;
+               now - last_sync > (time_t)TIME_RESYNC_DAYS * 24 * 3600 - 3600;
     if (!due) {
         ESP_LOGI(TAG, "RTC time is valid, no Wi-Fi needed");
     } else if (sync_over_wifi(true)) {
