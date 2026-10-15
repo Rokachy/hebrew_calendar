@@ -39,7 +39,10 @@ update it goes into deep sleep and is re-initialised before the next one.
 | `main/epaper_uc8179.c/h` | low-level panel driver (the name is historical, the chip is a JD79668) |
 | `main/epd_panel.c/h` | connects the driver to the LVGL port (init / show frame) |
 | `main/time_sync.c/h` | keeps the clock set: Wi-Fi + internet time only when needed |
-| `main/wifi_secrets.h` | your Wi-Fi name and password – **not in git**, copy it from `wifi_secrets.example.h` |
+| `main/user_data.c/h` | reads the private data (Wi-Fi, family dates) from the `userdata` NVS partition at boot |
+| `user_data.csv` | your Wi-Fi name, password and family dates – **not in git**, copy it from `user_data.example.csv` |
+| `flash_user_data.bat` | writes `user_data.csv` to the board without a build (run after every change) |
+| `partitions.csv` | app 1.5 MB + the 16 KB `userdata` NVS partition |
 | `components/epaper_ui/` | **copied from the simulator repo** – the calendar UI, fonts, colour palette, the calendar calculations (`cal/`) and the LVGL display port |
 | `sdkconfig.defaults` | ESP32-S3 and LVGL settings |
 
@@ -61,8 +64,8 @@ All in `components/epaper_ui/cal/`, from today's date and the fixed settings in
 - כניסת השבת: sunset minus the city's minutes (22 / 40 / 30 / 20), rounded down;
   יציאת השבת: sun 8.5 degrees below the horizon, rounded up
 - Holidays, ראש חודש and fasts (Israel), פרשת השבוע (Israel), daf yomi
-- Family dates from `cal/family.h` – **not in git**; edit it in the simulator repo
-  (`src/cal/family.h`, copied from `family.example.h`), then sync
+- Family dates from `user_data.csv` (keys `fam0`, `fam1`, ...: `month day text`, see
+  `user_data.example.csv`); the simulator uses its own `src/cal/family.h` instead
 
 The simulator repo has tests that check these against Hebcal and the printed calendar.
 
@@ -86,12 +89,12 @@ PSRAM is needed. LVGL itself allocates from the ESP heap (the UI needs about 80 
 
 ## Build and flash
 
-ESP-IDF v6.0.1. LVGL 9.6 is downloaded automatically by the component manager.
+ESP-IDF v6.1. LVGL 9.6 is downloaded automatically by the component manager.
 
-First create your Wi-Fi settings (once):
+First create your private data (once), then `idf.py reconfigure` so the build picks it up:
 
 ```powershell
-copy main\wifi_secrets.example.h main\wifi_secrets.h   # then edit the name and password
+copy user_data.example.csv user_data.csv   # then edit Wi-Fi name, password and family dates
 ```
 
 ```powershell
@@ -99,6 +102,9 @@ copy main\wifi_secrets.example.h main\wifi_secrets.h   # then edit the name and 
 idf.py build
 idf.py -p COM9 flash monitor
 ```
+
+`idf.py flash` also writes `user_data.csv` to the `userdata` partition. To change only
+the data later (no build needed): `flash_user_data.bat [PORT]` (default COM9).
 
 COM9 is the WROOM dev board; the ESP32-S3-Zero uses its native USB and gets its own
 COM port (hold BOOT while plugging it in if it does not show up).
