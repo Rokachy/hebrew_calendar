@@ -11,3 +11,6 @@ idf_component_register(
 
 # UI and font files include "lvgl.h" directly on ESP-IDF
 target_compile_definitions(${COMPONENT_LIB} PUBLIC LV_LVGL_H_INCLUDE_SIMPLE)
+
+# Family dates come from NVS (main/user_data.c), not from family.h
+target_compile_definitions(${COMPONENT_LIB} PRIVATE FAMILY_DATES_RUNTIME)

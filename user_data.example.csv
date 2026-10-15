@@ -1,0 +1,16 @@
+# Private data, written to the "userdata" NVS partition by `idf.py flash`
+# (only this partition: `idf.py userdata-flash`). Copy this file to user_data.csv
+# (in .gitignore) and fill it in. UTF-8. Lines starting with # are ignored.
+#
+# Family dates: keys fam0, fam1, ... (up to fam63), value "month day text", by the
+# Hebrew calendar. Months: tishrei cheshvan kislev tevet shvat adar nisan iyyar
+# sivan tamuz av elul; adar = born in plain Adar (Adar II in a leap year),
+# adar1 / adar2 = born in a leap year. Put the name first: text that does not
+# fit is cut at the end.
+key,type,encoding,value
+user,namespace,,
+wifi_ssid,data,string,your-network
+wifi_pass,data,string,your-password
+fam0,data,string,kislev 25 דני - יום הולדת
+fam1,data,string,adar 7 רות - יום הולדת
+fam2,data,string,sivan 12 דני ורות - נישואין

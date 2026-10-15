@@ -52,5 +52,9 @@
   sync (RTC_DATA_ATTR) is older than TIME_RESYNC_DAYS. Wi-Fi is deinitialised before LVGL.
 - `main/main.c` draws once (`lv_refr_now`), then deep sleeps until 00:01; no valid time ->
   screen untouched, retry in 15 min.
-- Wi-Fi credentials: `main/wifi_secrets.h` (gitignored, never commit it); template
-  `main/wifi_secrets.example.h`.
+- Private data (Wi-Fi name/password, family dates) lives in the `userdata` NVS partition
+  (`partitions.csv`), image built from `user_data.csv` (gitignored, never commit it;
+  template `user_data.example.csv`) and written by `idf.py flash` / `idf.py userdata-flash`,
+  or without a build by `flash_user_data.bat [PORT]` (nvs_partition_gen + esptool).
+  `main/user_data.c` reads it at boot and passes the family dates to the UI via
+  `family_dates_set()` (the HW build defines FAMILY_DATES_RUNTIME, family.h is not synced).

@@ -14,12 +14,7 @@
 #include "freertos/event_groups.h"
 #include "freertos/semphr.h"
 #include "nvs_flash.h"
-
-#if __has_include("wifi_secrets.h")
-    #include "wifi_secrets.h"
-#else
-    #error "Copy main/wifi_secrets.example.h to main/wifi_secrets.h and set your Wi-Fi name and password"
-#endif
+#include "user_data.h"
 
 static const char *TAG = "TIME";
 
@@ -99,6 +94,11 @@ static void ntp_received(struct timeval *tv) {
  * difference to our own clock (drift statistics), the clock is left as it was.
  */
 static bool sync_over_wifi(bool set_clock) {
+    if (user_wifi_ssid()[0] == '\0') {
+        ESP_LOGE(TAG, "No Wi-Fi name in the user data (user_data.csv)");
+        return false;
+    }
+
     esp_err_t err = nvs_flash_init();   // Wi-Fi keeps its calibration in NVS
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -112,6 +112,8 @@ static bool sync_over_wifi(bool set_clock) {
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    // The password stays in the userdata partition only, no copy in the default NVS
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
 
     wifi_events = xEventGroupCreate();
     wifi_retries = 0;
@@ -122,14 +124,14 @@ static bool sync_over_wifi(bool set_clock) {
                                                         wifi_event_handler, NULL, &ip_handler));
 
     wifi_config_t wifi_config = { 0 };
-    strncpy((char *)wifi_config.sta.ssid, WIFI_SSID, sizeof(wifi_config.sta.ssid));
-    strncpy((char *)wifi_config.sta.password, WIFI_PASSWORD, sizeof(wifi_config.sta.password));
+    strncpy((char *)wifi_config.sta.ssid, user_wifi_ssid(), sizeof(wifi_config.sta.ssid));
+    strncpy((char *)wifi_config.sta.password, user_wifi_password(), sizeof(wifi_config.sta.password));
     wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    ESP_LOGI(TAG, "Connecting to Wi-Fi \"%s\"...", WIFI_SSID);
+    ESP_LOGI(TAG, "Connecting to Wi-Fi \"%s\"...", user_wifi_ssid());
     EventBits_t bits = xEventGroupWaitBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                            pdFALSE, pdFALSE, pdMS_TO_TICKS(WIFI_TIMEOUT_MS));
     bool synced = false;

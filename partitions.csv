@@ -1,0 +1,7 @@
+# Name,   Type, SubType, Offset,  Size, Flags
+# As partitions_singleapp_large.csv, plus "userdata": private data (Wi-Fi, family
+# dates), image built from user_data.csv and written by `idf.py flash`.
+nvs,      data, nvs,     ,        0x6000,
+phy_init, data, phy,     ,        0x1000,
+factory,  app,  factory, ,        1500K,
+userdata, data, nvs,     ,        0x4000,

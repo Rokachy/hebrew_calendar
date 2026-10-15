@@ -3,7 +3,8 @@
  *
  * Template for the private family dates. Copy this file to family.h (same
  * folder) and put in your own dates. family.h is in .gitignore in both repos,
- * so names and dates never reach GitHub; the sync script copies it to the HW.
+ * so names and dates never reach GitHub. Simulator only: the HW project reads
+ * its family dates from NVS (user_data.csv there), the sync script skips family.h.
  *
  * One line per date, by the Hebrew calendar: { month, day, "text" }.
  * Months: HM_TISHREI, HM_CHESHVAN, HM_KISLEV, HM_TEVET, HM_SHVAT,

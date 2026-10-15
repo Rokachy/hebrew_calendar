@@ -3,10 +3,13 @@
 
 /managed_components/
 
-# Wi-Fi name and password (template: main/wifi_secrets.example.h)
+# Private data: Wi-Fi name and password, family dates -> userdata NVS partition
+# (template: user_data.example.csv)
+/user_data.csv
+# Old place of the Wi-Fi password, before user_data.csv
 /main/wifi_secrets.h
 
-# Private family dates, synced from the simulator (template: family.example.h)
+# Private family dates of the simulator; not synced any more, kept as a safety net
 /components/epaper_ui/cal/family.h
 
 # ESP-IDF backup of the previous sdkconfig (menuconfig / reconfigure)

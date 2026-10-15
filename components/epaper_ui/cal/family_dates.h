@@ -5,6 +5,8 @@
  *
  * The list itself is private: it lives in family.h, which is NOT in git (both
  * repos are public). Copy family.example.h to family.h and fill it in.
+ * The ESP32 build does not use family.h: it reads the list from NVS and passes
+ * it in with family_dates_set().
  */
 
 #ifndef FAMILY_DATES_H
@@ -26,6 +28,12 @@ typedef struct {
     int day;            /**< 1 ... 30 */
     const char *text;   /**< shown in the event column, e.g. "יום הולדת לדני" */
 } family_date_t;
+
+/**
+ * Use `list` (`count` entries, kept by the caller) instead of the compiled-in
+ * list from family.h. Entries with text NULL or day 0 are skipped.
+ */
+void family_dates_set(const family_date_t *list, size_t count);
 
 /**
  * True if a family date (month, day) falls on the Hebrew date `today`:

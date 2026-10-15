@@ -16,6 +16,7 @@
 #include "time_sync.h"
 #include "power_config.h"
 #include "location.h"
+#include "user_data.h"
 
 static const char *TAG = "MAIN";
 
@@ -178,6 +179,9 @@ void app_main(void) {
              (unsigned long)esp_sleep_get_wakeup_causes());
     ESP_LOGI(TAG, "RTC slow clock: %s", rtc_clk_slow_src_get() == SOC_RTC_SLOW_CLK_SRC_XTAL32K
                                             ? "32.768 kHz crystal" : "internal RC (NOT the crystal)");
+
+    // Wi-Fi name and password, family dates (from the userdata NVS partition)
+    user_data_load();
 
     // Wi-Fi only when the RTC has no valid time or a resync is due
     if (!time_sync_ensure()) {
